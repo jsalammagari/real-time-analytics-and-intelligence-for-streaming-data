@@ -8,28 +8,28 @@ function DataSourceSelection() {
   const [loading, setLoading] = useState(true);
 
   // Fetch data sources from API on component mount
-  // useEffect(() => {
-  //   // Replace the URL with your API endpoint
-  //   axios.get('/api/data-sources')
-  //     .then(response => {
-  //       setDataSources(response.data);
-  //     })
-  //     .catch(error => {
-  //       console.error('Error fetching data sources:', error);
-  //     });
-  // }, []);
-
   useEffect(() => {
-    const sampleDataSources = [
-      { id: 1, name: 'IOT Data', description: 'Smoke detection dataset' },
-      { id: 2, name: 'Financial data', description: 'Stock market data' },
-      { id: 3, name: 'Health care data', description: 'Covid-19 cases in 2020' },
-    ];
-    setTimeout(() => {
-      setDataSources(sampleDataSources);
-      setLoading(false);
-    }, 1000);
+    axios.get('http://localhost:5000/api/data-sources')
+      .then(response => {
+        setDataSources(response.data);
+      })
+      .catch(error => {
+        console.error('Error fetching data sources:', error);
+      });
   }, []);
+  
+
+  // useEffect(() => {
+  //   const sampleDataSources = [
+  //     { id: 1, name: 'IOT Data', description: 'Smoke detection dataset' },
+  //     { id: 2, name: 'Financial data', description: 'Stock market data' },
+  //     { id: 3, name: 'Health care data', description: 'Covid-19 cases in 2020' },
+  //   ];
+  //   setTimeout(() => {
+  //     setDataSources(sampleDataSources);
+  //     setLoading(false);
+  //   }, 1000);
+  // }, []);
 
   const handleCheckboxChange = (dataSourceId) => {
     setSelectedSources(prevSelectedSources => {
@@ -41,14 +41,30 @@ function DataSourceSelection() {
     });
   };
 
+  // const handleSubmit = () => {
+  //   if (selectedSources.length === 0) {
+  //     alert("Please select at least one data source.");
+  //   } else {
+  //     console.log('Selected Data Sources:', selectedSources);
+  //     alert("Data sources selected: " + selectedSources.join(', '));
+  //   }
+  // };
+
   const handleSubmit = () => {
     if (selectedSources.length === 0) {
       alert("Please select at least one data source.");
     } else {
-      console.log('Selected Data Sources:', selectedSources);
-      alert("Data sources selected: " + selectedSources.join(', '));
+      axios.post('http://localhost:5000/api/selected-sources', { selectedSources })
+        .then(response => {
+          console.log(response.data.message);
+          alert(response.data.message);
+        })
+        .catch(error => {
+          console.error('Error submitting selected sources:', error);
+          alert('An error occurred while submitting data sources');
+        });
     }
-  };
+  };  
 
   return (
     <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
