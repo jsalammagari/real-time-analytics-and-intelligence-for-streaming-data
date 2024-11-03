@@ -1,12 +1,5 @@
 const express = require('express');
-const cors = require('cors');
-
-const app = express();
-const PORT = 5000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
+const router = express.Router();
 
 // Sample data sources
 const dataSources = [
@@ -15,16 +8,13 @@ const dataSources = [
   { id: 3, name: 'Healthcare Data', description: 'Covid-19 cases in 2020' },
 ];
 
-// Routes
-app.get('/', (req, res) => {
-  res.send('API is running');
-});
-
-app.get('/api/data-sources', (req, res) => {
+// GET /api/data-sources
+router.get('/', (req, res) => {
   res.json(dataSources);
 });
 
-app.post('/api/selected-sources', (req, res) => {
+// POST /api/selected-sources
+router.post('/selected-sources', (req, res) => {
   const { selectedSources } = req.body;
 
   if (!selectedSources || selectedSources.length === 0) {
@@ -36,7 +26,4 @@ app.post('/api/selected-sources', (req, res) => {
   res.status(200).json({ message: 'Data sources selected successfully', selectedSources });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+module.exports = router;
