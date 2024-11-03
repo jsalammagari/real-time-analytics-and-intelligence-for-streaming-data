@@ -5,10 +5,12 @@ import PatternDefinition from "./pages/PatternDefinition";
 import MLModelConfig from "./pages/MLModelConfig";
 import Visualization from "./pages/Visualization";
 import Settings from "./pages/Settings";
+import Navbar from "./components/Navbar";
 
 function App() {
   return (
     <Router>
+      <Navbar /> {/* Add Navbar here */}
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/data-source" element={<DataSourceSelection />} />

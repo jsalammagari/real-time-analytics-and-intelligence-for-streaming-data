@@ -133,3 +133,29 @@ a:hover {
 .bold {
   font-weight: bold;
 }
+
+/* Navbar styling */
+.MuiAppBar-root {
+  box-shadow: none;
+}
+
+.MuiButton-root {
+  font-weight: bold;
+}
+
+.MuiButton-root:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.MuiMenu-paper {
+  background-color: #1976d2;
+  color: white;
+}
+
+.MuiMenuItem-root {
+  font-size: 1rem;
+}
+
+.MuiMenuItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
