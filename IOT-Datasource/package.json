@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "csv-parser": "^3.0.0",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "kafkajs": "^2.2.4"
   }
 }
