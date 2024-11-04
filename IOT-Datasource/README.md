@@ -5,5 +5,12 @@ and place it in IOT-Datasource folder and use below commands
 
 ```
 npm install
+```
+For normal streaming
+```
 node server.js
 ```
+For Kafka streaming - Start your local zookeper and Kafka
+```
+node kafkaProducer.js
+``` 
