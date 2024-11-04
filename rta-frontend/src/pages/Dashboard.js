@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Card, CardContent, Grid, Box } from '@mui/material';
+import { Typography, Card, CardContent, Grid, Box, Snackbar, Alert } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -17,6 +17,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 function Dashboard() {
   const [lineChartData, setLineChartData] = useState([]);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     const eventSource = new EventSource('http://localhost:5000/api/stream');
@@ -25,15 +26,13 @@ function Dashboard() {
       const newData = JSON.parse(event.data);
       console.log('Received streaming data:', newData);
 
-      // Extract relevant fields
-      const time = new Date(newData.UTC).toLocaleTimeString(); // Format time for x-axis
+      const time = new Date(newData.UTC).toLocaleTimeString(); 
       const humidity = parseFloat(newData['Humidity[%]']);
       const temperature = parseFloat(newData['Temperature[C]']);
 
-      // Add the new data point to the line chart data
       setLineChartData((prevData) => {
         const updatedData = [...prevData, { time, humidity, temperature }];
-        return updatedData.slice(-10); // Keep the last 10 data points for readability
+        return updatedData.slice(-6); // Keep the last 6 data points for readability
       });
     };
 
@@ -42,11 +41,26 @@ function Dashboard() {
       eventSource.close();
     };
 
+    const anomalyStream = new EventSource('http://localhost:5000/api/stream-anomaly');
+    anomalyStream.onmessage = (event) => {
+      const anomalyData = JSON.parse(event.data);
+      console.log('Received anomaly data:', anomalyData);
+      setNotification(`Anomaly detected! Temperature: ${anomalyData['Temperature[C]']}°C`);
+    };
+    anomalyStream.onerror = () => {
+      console.error('Error receiving anomaly data');
+      anomalyStream.close();
+    };
     // Cleanup on component unmount
     return () => {
       eventSource.close();
+      anomalyStream.close();
     };
   }, []);
+
+  const handleNotificationClose = () => {
+    setNotification(null);
+  };
 
   return (
     <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -137,6 +151,11 @@ function Dashboard() {
         </Grid>
 
       </Grid>
+      <Snackbar open={!!notification} autoHideDuration={12000} onClose={handleNotificationClose}>
+        <Alert severity="warning" onClose={handleNotificationClose}>
+          {notification}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
