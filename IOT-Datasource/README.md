@@ -10,7 +10,7 @@ For normal streaming
 ```
 node server.js
 ```
-For Kafka streaming - Start your local zookeper and Kafka
+For Kafka streaming - Start your local zookeeper and Kafka
 ```
 node kafkaProducer.js
 ``` 
