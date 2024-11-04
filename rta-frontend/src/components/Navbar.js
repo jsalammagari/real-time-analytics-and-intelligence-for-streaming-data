@@ -29,11 +29,11 @@ function Navbar() {
   return (
     <AppBar position="static" sx={{ backgroundColor: '#1976d2' }}>
       <Toolbar>
-        <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
+        {/* <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
           <MenuIcon />
-        </IconButton>
+        </IconButton> */}
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          Real-Time Analytics
+          RAISD
         </Typography>
         <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
           <Button color="inherit" startIcon={<DashboardIcon />} onClick={() => navigateTo('/')}>
