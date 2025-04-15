@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Typography, Card, CardContent, Grid, Box, Snackbar, Alert } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import AlarmIcon from '@mui/icons-material/Alarm';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 
 function Dashboard() {
+  const [selectedSource, setSelectedSource] = useState(null);
+  const location = useLocation();
+
   const [lineChartData, setLineChartData] = useState([]);
   const [pmChartData, setPmChartData] = useState([]);
   const [notification, setNotification] = useState(null);
@@ -13,208 +19,346 @@ function Dashboard() {
   const [dataQualityStatus, setDataQualityStatus] = useState('Streaming');
   const [lastCnt, setLastCnt] = useState(null); 
   const [latestData, setLatestData] = useState({ TVOC: 0, eCO2: 0, PM1: 0, PM2_5: 0 });
+  const [aqiData, setAqiData] = useState([]);
+
+  const [vitalChartData, setVitalChartData] = useState([]);
+  const [latestVitals, setLatestVitals] = useState({});
+  
 
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:5000/api/stream');
+    const queryParams = new URLSearchParams(location.search);
+    setSelectedSource(queryParams.get('selected'));
+    const sources = queryParams.get('selected');
+    console.log('Selected:', selectedSource, queryParams.get('selected'));
 
-    eventSource.onmessage = (event) => {
-      const newData = JSON.parse(event.data);
-      console.log('Received streaming data:', newData);
+    if (sources === '1') {
+      const eventSource = new EventSource('http://localhost:5000/api/iot-stream');
 
-      const time = new Date(newData.UTC).toLocaleTimeString(); 
-      const humidity = parseFloat(newData['Humidity[%]']);
-      const temperature = parseFloat(newData['Temperature[C]']);
-      const pm1 = parseFloat(newData['PM1.0']);
-      const pm25 = parseFloat(newData['PM2.5']);
-      const eCO2 = parseFloat(newData['eCO2[ppm]']);
-      const TVOC = parseFloat(newData['TVOC[ppb]']);
-      const fireAlarm = parseInt(newData['Fire Alarm'], 10); 
-      const cnt = parseInt(newData['CNT'], 10);
+      eventSource.onmessage = (event) => {
+        const newData = JSON.parse(event.data);
+        console.log('Received streaming data:', newData);
 
-      setLatestData({ TVOC, eCO2, PM1: pm1, PM2_5: pm25 });
+        const time = new Date(newData.UTC).toLocaleTimeString(); 
+        const humidity = parseFloat(newData['Humidity[%]']);
+        const temperature = parseFloat(newData['Temperature[C]']);
+        const pm1 = parseFloat(newData['PM1.0']);
+        const pm25 = parseFloat(newData['PM2.5']);
+        const eCO2 = parseFloat(newData['eCO2[ppm]']);
+        const TVOC = parseFloat(newData['TVOC[ppb]']);
+        const fireAlarm = parseInt(newData['Fire Alarm'], 10); 
+        const cnt = parseInt(newData['CNT'], 10);
 
-      setLineChartData((prevData) => {
-        const updatedData = [...prevData, { time, humidity, temperature }];
-        return updatedData.slice(-6); 
-      });
-      setPmChartData((prevData) => {
-        const updatedData = [...prevData, { time, pm1, pm25 }];
-        return updatedData.slice(-6); // Keep the last 6 data points for readability
-      });
-      if (lastCnt !== null && cnt === lastCnt) {
-        setDataQualityStatus('Disconnected');
-      } else {
-        setDataQualityStatus('Streaming');
-      }
-      setLastCnt(cnt);
-      const calculatedAqi = (eCO2 * 0.25) + (TVOC * 0.25) + (pm1 * 0.25) + (pm25 * 0.25);
-      setAqi(calculatedAqi);
-      setFireAlarmStatus(fireAlarm);
-    };
+        setLatestData({ TVOC, eCO2, PM1: pm1, PM2_5: pm25 });
 
-    eventSource.onerror = () => {
-      console.error('Error receiving streaming data');
-      eventSource.close();
-    };
+        setLineChartData((prevData) => {
+          const updatedData = [...prevData, { time, humidity, temperature }];
+          return updatedData.slice(-6); 
+        });
+        setPmChartData((prevData) => {
+          const updatedData = [...prevData, { time, pm1, pm25 }];
+          return updatedData.slice(-6); // Keep the last 6 data points for readability
+        });
+        if (lastCnt !== null && cnt === lastCnt) {
+          setDataQualityStatus('Disconnected');
+        } else {
+          setDataQualityStatus('Streaming');
+        }
+        setLastCnt(cnt);
+        const calculatedAqi = (eCO2 * 0.25) + (TVOC * 0.25) + (pm1 * 0.25) + (pm25 * 0.25);
+        setAqi(calculatedAqi);
 
-    const anomalyStream = new EventSource('http://localhost:5000/api/stream-anomaly');
-    anomalyStream.onmessage = (event) => {
-      const anomalyData = JSON.parse(event.data);
-      console.log('Received anomaly data:', anomalyData);
-      setNotification(`Anomaly detected! Temperature: ${anomalyData['Temperature[C]']}°C`);
-    };
-    anomalyStream.onerror = () => {
-      console.error('Error receiving anomaly data');
-      anomalyStream.close();
-    };
-    // Cleanup on component unmount
-    return () => {
-      eventSource.close();
-      anomalyStream.close();
-    };
-  }, []);
+        setAqiData([
+          {
+            name: 'AQI',
+            value: calculatedAqi,
+            fill: calculatedAqi <= 50 ? '#4caf50' : calculatedAqi <= 100 ? '#ffeb3b' : '#f44336',
+          }
+        ]);
+
+        setFireAlarmStatus(fireAlarm);
+      };
+
+      eventSource.onerror = () => {
+        console.error('Error receiving streaming data');
+        eventSource.close();
+      };
+
+      const anomalyStream = new EventSource('http://localhost:5000/api/iot-stream-anomaly');
+      anomalyStream.onmessage = (event) => {
+        const anomalyData = JSON.parse(event.data);
+        console.log('Received anomaly data:', anomalyData);
+        setNotification(`Anomaly detected! Temperature: ${anomalyData['Temperature[C]']}°C`);
+      };
+      anomalyStream.onerror = () => {
+        console.error('Error receiving anomaly data');
+        anomalyStream.close();
+      };
+
+      return () => {
+        eventSource.close();
+        anomalyStream.close();
+      };
+    }
+
+    if (sources === '2') {
+    }
+
+    if (sources === '3') {
+      const eventSource = new EventSource('http://localhost:5000/api/healthcare-stream');
+  
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setLatestVitals(data);
+        setVitalChartData(prev => [...prev, {
+          time: new Date(data.UTC).toLocaleTimeString(),
+          heart_rate: parseFloat(data.heart_rate),
+          respiratory_rate: parseFloat(data.respiratory_rate),
+          temperature: parseFloat(data.temperature),
+        }].slice(-6));
+
+        if (parseFloat(data.oxygen_saturation) < 94 || parseFloat(data.temperature) > 38) {
+          setNotification(`⚠️ Alert for patient ${data.subject_id}: Low SpO2 or High Temp`);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error('Healthcare stream error:', err);
+        eventSource.close();
+      };
+
+      return () => eventSource.close();
+    }
+
+    
+  }, [location]);
 
   const handleNotificationClose = () => {
     setNotification(null);
   };
-  const aqiData = [
-    {
-      name: 'AQI',
-      value: aqi,
-      fill: aqi <= 50 ? '#4caf50' : aqi <= 100 ? '#ffeb3b' : '#f44336', // Green for Good, Yellow for Moderate, Red for Unhealthy
-    },
-  ];
 
-  return (
-    <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-      {/* <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
-        Real-time Analytics and Intelligence of Streaming Data
-      </Typography> */}
-      <Grid container spacing={3}>
-        
-        {/* Fire Alarm */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-            <AlarmIcon style={{ fontSize: 50, color: '#F44336' }} />
-              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
-                Fire Alarm Status
-              </Typography>
-              <Typography variant="body2" sx={{ color: fireAlarmStatus === 1 ? '#d32f2f' : '#388e3c', fontSize: '16px', fontWeight: 'bold', marginTop: '8px' }}>
-                {fireAlarmStatus === 1 ? '⚠️ Alarm Triggered!' : '✅ Normal'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+  if (selectedSource === '1') {
+    return (
+      <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+        {<Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
+          IOT Data Dashboard
+        </Typography>}
+        <Grid container spacing={3}>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
+              <CardContent sx={{ textAlign: 'center' }}>
+              <AlarmIcon style={{ fontSize: 50, color: '#F44336' }} />
+                <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
+                  Fire Alarm Status
+                </Typography>
+                <Typography variant="body2" sx={{ color: fireAlarmStatus === 1 ? '#d32f2f' : '#388e3c', fontSize: '16px', fontWeight: 'bold', marginTop: '8px' }}>
+                  {fireAlarmStatus === 1 ? '⚠️ Alarm Triggered!' : '✅ Normal'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
 
-        {/* Data Quality Status */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ShowChartIcon style={{ fontSize: 50, color: dataQualityStatus === 'Streaming' ? '#4caf50' : '#f44336' }} />
-              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
-                Data Quality Status
-              </Typography>
-              <Typography variant="body2" sx={{ color: dataQualityStatus === 'Streaming' ? '#4caf50' : '#f44336', fontSize: '18px', fontWeight: 'bold', marginTop: '8px' }}>
-                {dataQualityStatus === 'Streaming' ? '🟢 Data Streaming' : '🔴 Disconnected'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <ShowChartIcon style={{ fontSize: 50, color: dataQualityStatus === 'Streaming' ? '#4caf50' : '#f44336' }} />
+                <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
+                  Data Quality Status
+                </Typography>
+                <Typography variant="body2" sx={{ color: dataQualityStatus === 'Streaming' ? '#4caf50' : '#f44336', fontSize: '18px', fontWeight: 'bold', marginTop: '8px' }}>
+                  {dataQualityStatus === 'Streaming' ? '🟢 Data Streaming' : '🔴 Disconnected'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
 
-        {/* AQI Gauge */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
-                Air Quality Index (AQI)
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
+                  Air Quality Index (AQI)
+                </Typography>
+                <ResponsiveContainer width="100%" height={200}>
+                  <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" barSize={20} data={aqiData} startAngle={180} endAngle={0}>
+                    <PolarAngleAxis type="number" domain={[0, 150]} angleAxisId={0} tick={false} />
+                    <RadialBar background clockWise dataKey="value" />
+                    <Tooltip />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <Typography variant="h6" sx={{ fontWeight: 'bold',marginTop: '-90px', color: aqi <= 50 ? '#4caf50' : aqi <= 100 ? '#ffeb3b' : '#f44336' }}>
+                  {aqi <= 50 ? 'Good' : aqi <= 100 ? 'Moderate' : 'Unhealthy'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#777', marginTop: '8px' }}>
+                  Current AQI: {Math.round(aqi)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
+                  Air Quality Summary
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#777', marginTop: '8px' }}>
+                  TVOC: {latestData.TVOC} ppb
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#777' }}>
+                  eCO2: {latestData.eCO2} ppm
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#777' }}>
+                  PM1.0: {latestData.PM1} µg/m³
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#777' }}>
+                  PM2.5: {latestData.PM2_5} µg/m³
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ padding: '20px', borderRadius: '15px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' }}>
+              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555', textAlign: 'center' }}>
+                Humidity and Temperature Trends
               </Typography>
-              <ResponsiveContainer width="100%" height={200}>
-                <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" barSize={20} data={aqiData} startAngle={180} endAngle={0}>
-                  <PolarAngleAxis type="number" domain={[0, 150]} angleAxisId={0} tick={false} />
-                  <RadialBar background clockWise dataKey="value" />
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={lineChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
                   <Tooltip />
-                </RadialBarChart>
+                  <Line type="monotone" dataKey="humidity" stroke="#0088FE" name="Humidity (%)" />
+                  <Line type="monotone" dataKey="temperature" stroke="#FF0000" name="Temperature (°C)" />
+                </LineChart>
               </ResponsiveContainer>
-              <Typography variant="h6" sx={{ fontWeight: 'bold',marginTop: '-90px', color: aqi <= 50 ? '#4caf50' : aqi <= 100 ? '#ffeb3b' : '#f44336' }}>
-                {aqi <= 50 ? 'Good' : aqi <= 100 ? 'Moderate' : 'Unhealthy'}
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ padding: '20px', borderRadius: '15px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' }}>
+              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555', textAlign: 'center' }}>
+                Particulate Matter Levels (PM1.0 and PM2.5)
               </Typography>
-              <Typography variant="body2" sx={{ color: '#777', marginTop: '8px' }}>
-                Current AQI: {Math.round(aqi)}
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={pmChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="pm1" stroke="#82ca9d" name="PM1.0" />
+                  <Line type="monotone" dataKey="pm25" stroke="#8884d8" name="PM2.5" />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          </Grid>
+
+        </Grid>
+        <Snackbar open={!!notification} autoHideDuration={12000} onClose={handleNotificationClose}>
+          <Alert severity="warning" onClose={handleNotificationClose}>
+            {notification}
+          </Alert>
+        </Snackbar>
+      </Box>
+    );
+  } else if (selectedSource === '2') {
+    return (
+      <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
+          Financial Data Dashboard
+        </Typography>
+        {/* Add your financial data visualization components here */}
+      </Box>
+    );
+
+  } else{
+    return (
+      <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
+          Healthcare Data Dashboard
+        </Typography>
+        
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+              <CardContent>
+                <FavoriteIcon style={{ fontSize: 50, color: '#f44336' }} />
+                <Typography variant="h6">Heart Rate</Typography>
+                <Typography variant="h5">{latestVitals.heart_rate} bpm</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+              <CardContent>
+                <MonitorHeartIcon style={{ fontSize: 50, color: '#2196f3' }} />
+                <Typography variant="h6">Oxygen Saturation</Typography>
+                <Typography variant="h5">{latestVitals.oxygen_saturation} %</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+              <CardContent>
+                <Typography variant="h6">Temperature</Typography>
+                <Typography variant="h5">{latestVitals.temperature} °C</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+              <CardContent>
+                <Typography variant="h6">Respiratory Rate</Typography>
+                <Typography variant="h5">{latestVitals.respiratory_rate} bpm</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Card sx={{ padding: '20px', borderRadius: '12px' }}>
+              <Typography variant="h6" sx={{ textAlign: 'center', marginBottom: 2 }}>
+                Vital Signs Over Time
               </Typography>
-            </CardContent>
-          </Card>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={vitalChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="heart_rate" stroke="#f44336" name="Heart Rate" />
+                  <Line type="monotone" dataKey="respiratory_rate" stroke="#2196f3" name="Resp. Rate" />
+                  <Line type="monotone" dataKey="temperature" stroke="#ff9800" name="Temperature" />
+                </LineChart>
+              </ResponsiveContainer>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#f44336' }} />
+                  <Typography variant="body2">Heart Rate</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#2196f3' }} />
+                  <Typography variant="body2">Resp. Rate</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#ff9800' }} />
+                  <Typography variant="body2">Temperature</Typography>
+                </Box>
+              </Box>
+            </Card>
+          </Grid>
         </Grid>
 
-        {/* Air Quality Summary Panel */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', transition: 'transform 0.3s', '&:hover': { transform: 'scale(1.05)' }, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)', borderRadius: '15px' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: '600', color: '#555' }}>
-                Air Quality Summary
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#777', marginTop: '8px' }}>
-                TVOC: {latestData.TVOC} ppb
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#777' }}>
-                eCO2: {latestData.eCO2} ppm
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#777' }}>
-                PM1.0: {latestData.PM1} µg/m³
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#777' }}>
-                PM2.5: {latestData.PM2_5} µg/m³
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Line Chart for Humidity and Temperature */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ padding: '20px', borderRadius: '15px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' }}>
-            <Typography variant="h6" sx={{ fontWeight: '600', color: '#555', textAlign: 'center' }}>
-              Humidity and Temperature Trends
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={lineChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="humidity" stroke="#0088FE" name="Humidity (%)" />
-                <Line type="monotone" dataKey="temperature" stroke="#FF0000" name="Temperature (°C)" />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
-
-        {/* Particulate Matter Levels Chart for PM1.0 and PM2.5 */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ padding: '20px', borderRadius: '15px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' }}>
-            <Typography variant="h6" sx={{ fontWeight: '600', color: '#555', textAlign: 'center' }}>
-              Particulate Matter Levels (PM1.0 and PM2.5)
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={pmChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="pm1" stroke="#82ca9d" name="PM1.0" />
-                <Line type="monotone" dataKey="pm25" stroke="#8884d8" name="PM2.5" />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
-
-      </Grid>
-      <Snackbar open={!!notification} autoHideDuration={12000} onClose={handleNotificationClose}>
-        <Alert severity="warning" onClose={handleNotificationClose}>
-          {notification}
-        </Alert>
-      </Snackbar>
-    </Box>
-  );
+        <Snackbar open={!!notification} autoHideDuration={10000} onClose={handleNotificationClose}>
+          <Alert severity="warning" onClose={handleNotificationClose}>
+            {notification}
+          </Alert>
+        </Snackbar>
+      </Box>
+    );
+  }
 }
 
 export default Dashboard;

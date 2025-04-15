@@ -29,18 +29,18 @@ function Navbar() {
   return (
     <AppBar position="static" sx={{ backgroundColor: '#1976d2' }}>
       <Toolbar>
-        {/* <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
+        { <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
           <MenuIcon />
-        </IconButton> */}
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          RAISD
+        </IconButton> }
+        <Typography color="inherit" variant="h6" sx={{ flexGrow: 1 }}>
+          RTAISD
         </Typography>
         <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-          <Button color="inherit" startIcon={<DashboardIcon />} onClick={() => navigateTo('/')}>
-            Dashboard
-          </Button>
-          <Button color="inherit" startIcon={<SourceIcon />} onClick={() => navigateTo('/data-source')}>
+        <Button color="inherit" startIcon={<SourceIcon />} onClick={() => navigateTo('/')}>
             Data Source
+          </Button>
+          <Button color="inherit" startIcon={<DashboardIcon />} onClick={() => navigateTo('/dashboard')}>
+            Dashboard
           </Button>
           <Button color="inherit" startIcon={<ScatterPlotIcon />} onClick={() => navigateTo('/pattern-definition')}>
             Pattern Definition
@@ -63,10 +63,10 @@ function Navbar() {
           sx={{ display: { xs: 'block', md: 'none' } }}
         >
           <MenuItem onClick={() => navigateTo('/')}>
-            <DashboardIcon sx={{ mr: 1 }} /> Dashboard
+            <DashboardIcon sx={{ mr: 1 }} /> Data Source
           </MenuItem>
-          <MenuItem onClick={() => navigateTo('/data-source')}>
-            <SourceIcon sx={{ mr: 1 }} /> Data Source
+          <MenuItem onClick={() => navigateTo('/dashboard')}>
+            <SourceIcon sx={{ mr: 1 }} /> Dashboard
           </MenuItem>
           <MenuItem onClick={() => navigateTo('/pattern-definition')}>
             <ScatterPlotIcon sx={{ mr: 1 }} /> Pattern Definition
