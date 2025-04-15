@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Card, CardContent, Checkbox, FormControlLabel, Grid, Button, Box } from '@mui/material';
+import { Typography, Card, CardContent, Radio, FormControlLabel, Grid, Button, Box } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 function DataSourceSelection() {
+  const navigate = useNavigate();
   const [dataSources, setDataSources] = useState([]);
-  const [selectedSources, setSelectedSources] = useState([]);
+  const [selectedSource, setSelectedSource] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch data sources from API on component mount
   useEffect(() => {
     axios.get('http://localhost:5000/api/data-sources')
       .then(response => {
@@ -20,31 +21,25 @@ function DataSourceSelection() {
       });
   }, []);
 
-  const handleCheckboxChange = (dataSourceId) => {
-    setSelectedSources(prevSelectedSources => {
-      if (prevSelectedSources.includes(dataSourceId)) {
-        return prevSelectedSources.filter(id => id !== dataSourceId);
-      } else {
-        return [...prevSelectedSources, dataSourceId];
-      }
-    });
+  const handleRadioChange = (event) => {
+    setSelectedSource(event.target.value);
   };
 
   const handleSubmit = () => {
-    if (selectedSources.length === 0) {
-      alert("Please select at least one data source.");
+    if (!selectedSource) {
+      alert("Please select a data source.");
     } else {
-      axios.post('http://localhost:5000/api/data-sources/selected-sources', { selectedSources })
+      axios.post('http://localhost:5000/api/data-sources/selected-sources', { selectedSources: selectedSource})
         .then(response => {
-          console.log(response.data.message);
-          alert(response.data.message);
+          console.log('Selected data source submitted successfully:', response.data);
+          navigate(`/dashboard?selected=${selectedSource}`);
         })
         .catch(error => {
-          console.error('Error submitting selected sources:', error);
-          alert('An error occurred while submitting data sources');
+          console.error('Error submitting selected source:', error);
+          alert('An error occurred while submitting the data source');
         });
     }
-  };  
+  };
 
   return (
     <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -63,10 +58,10 @@ function DataSourceSelection() {
         <Grid container spacing={3}>
           {dataSources.map((dataSource) => (
             <Grid item xs={12} sm={6} md={4} key={dataSource.id}>
-              <Card sx={{ 
-                borderRadius: '15px', 
-                boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)', 
-                padding: '10px', 
+              <Card sx={{
+                borderRadius: '15px',
+                boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
+                padding: '10px',
                 transition: 'transform 0.3s',
                 '&:hover': { transform: 'scale(1.05)' },
                 backgroundColor: '#fafafa'
@@ -74,9 +69,10 @@ function DataSourceSelection() {
                 <CardContent>
                   <FormControlLabel
                     control={
-                      <Checkbox
-                        checked={selectedSources.includes(dataSource.id)}
-                        onChange={() => handleCheckboxChange(dataSource.id)}
+                      <Radio
+                        checked={selectedSource === dataSource.id.toString()}
+                        onChange={handleRadioChange}
+                        value={dataSource.id}
                         color="primary"
                       />
                     }

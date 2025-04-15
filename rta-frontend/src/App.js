@@ -12,8 +12,8 @@ function App() {
     <Router>
       <Navbar /> {/* Add Navbar here */}
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/data-source" element={<DataSourceSelection />} />
+        <Route path="/" element={< DataSourceSelection/>} />
+        <Route path="/dashboard" element={< Dashboard/>} />
         <Route path="/pattern-definition" element={<PatternDefinition />} />
         <Route path="/model-config" element={<MLModelConfig />} />
         <Route path="/visualization" element={<Visualization />} />

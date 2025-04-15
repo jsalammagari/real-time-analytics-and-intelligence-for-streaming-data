@@ -16,7 +16,6 @@ const producer = kafka.producer();
 let rows = [];
 let index = 0;
 
-// Read and parse the CSV file
 fs.createReadStream('smoke_detection_iot.csv')
   .pipe(csv())
   .on('data', (data) => rows.push(data))
@@ -36,16 +35,13 @@ async function startStreaming() {
       const currentUTC = new Date().toISOString();
 
       try {
-        // Preprocess the data row
         const preprocessedRow = dataPreprocessor.preprocess(rows[index]);
 
-        // Add UTC timestamp to the preprocessed row
         const rowWithTimestamps = {
           ...preprocessedRow,
           'UTC': currentUTC
         };
 
-        // Send the preprocessed row as a message to the Kafka topic 'iot-data'
         await producer.send({
           topic: 'iot-data',
           messages: [{ value: JSON.stringify(rowWithTimestamps) }],

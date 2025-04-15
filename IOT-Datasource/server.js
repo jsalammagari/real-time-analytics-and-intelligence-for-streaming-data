@@ -5,17 +5,24 @@ const csv = require('csv-parser');
 const app = express();
 const port = 3001;
 
-let rows = [];
-let index = 0;
+let iotRows = [];
+let iotIndex = 0;
+let healthcareRows = [];
+let healthcareIndex = 0;
 
 fs.createReadStream('smoke_detection_iot.csv')
   .pipe(csv())
-  .on('data', (data) => rows.push(data))
+  .on('data', (data) => iotRows.push(data))
   .on('end', () => {
     console.log('CSV file successfully processed');
   });
 
-app.get('/stream', (req, res) => {
+  fs.createReadStream('CVD_Vital_SIgns.csv')
+  .pipe(csv())
+  .on('data', (data) => healthcareRows.push(data))
+  .on('end', () => console.log('Healthcare CSV loaded'));
+
+app.get('/iot-stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -24,16 +31,48 @@ app.get('/stream', (req, res) => {
   const startTime = Date.now();
 
   const intervalId = setInterval(() => {
-    if (index < rows.length) {
-      const currentUTC = new Date(startTime + index * 3000).toISOString();
+    if (iotIndex < iotRows.length) {
+      const currentUTC = new Date(startTime + iotIndex * 3000).toISOString();
 
       const rowWithTimestamps = {
-        ...rows[index],
+        ...iotRows[iotIndex],
         'UTC': currentUTC
       };
 
       res.write(`data: ${JSON.stringify(rowWithTimestamps)}\n\n`);
-      index++;
+      iotIndex++;
+    } else {
+      clearInterval(intervalId);
+      res.write('data: End of data\n\n');
+      res.end();
+    }
+  }, 3000); 
+
+  req.on('close', () => {
+    clearInterval(intervalId);
+    console.log('Client closed connection');
+  });
+});
+
+app.get('/healthcare-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders(); 
+
+  const startTime = Date.now();
+
+  const intervalId = setInterval(() => {
+    if (healthcareIndex < healthcareRows.length) {
+      const currentUTC = new Date(startTime + healthcareIndex * 3000).toISOString();
+
+      const rowWithTimestamps = {
+        ...healthcareRows[healthcareIndex],
+        'UTC': currentUTC
+      };
+
+      res.write(`data: ${JSON.stringify(rowWithTimestamps)}\n\n`);
+      healthcareIndex++;
     } else {
       clearInterval(intervalId);
       res.write('data: End of data\n\n');
