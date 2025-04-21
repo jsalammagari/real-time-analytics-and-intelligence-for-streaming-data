@@ -1,35 +1,35 @@
 // ===============use below code If you are using normal streaming=============
-// const express = require('express');
-// const router = express.Router();
-// const axios = require('axios');
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
 
-// router.get('/', async (req, res) => {
-//   const streamUrl = "http://localhost:3001/stock-stream"; 
+router.get('/', async (req, res) => {
+  const streamUrl = "http://localhost:3001/stock-stream"; 
 
-//   try {
-//     res.setHeader('Content-Type', 'text/event-stream');
-//     res.setHeader('Cache-Control', 'no-cache');
-//     res.setHeader('Connection', 'keep-alive');
+  try {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-//     const response = await axios({
-//       method: 'get',
-//       url: streamUrl,
-//       responseType: 'stream'
-//     });
+    const response = await axios({
+      method: 'get',
+      url: streamUrl,
+      responseType: 'stream'
+    });
 
-//     response.data.pipe(res);
+    response.data.pipe(res);
 
-//     response.data.on('end', () => {
-//       res.end();
-//     });
+    response.data.on('end', () => {
+      res.end();
+    });
 
-//   } catch (error) {
-//     console.error("Error connecting to data stream:", error);
-//     res.status(500).send("Error connecting to data stream");
-//   }
-// });
+  } catch (error) {
+    console.error("Error connecting to data stream:", error);
+    res.status(500).send("Error connecting to data stream");
+  }
+});
 
-// module.exports = router;
+module.exports = router;
 
 // ===============use below code If you are using kafka streaming=============
 // streamData.js
