@@ -6,6 +6,7 @@ import AlarmIcon from '@mui/icons-material/Alarm';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+import IntelligenceAssistant from './IntelligenceAssistant';
 
 function Dashboard() {
   const [selectedSource, setSelectedSource] = useState(null);
@@ -57,7 +58,7 @@ function Dashboard() {
         });
         setPmChartData((prevData) => {
           const updatedData = [...prevData, { time, pm1, pm25 }];
-          return updatedData.slice(-6); // Keep the last 6 data points for readability
+          return updatedData.slice(-6);
         });
         if (lastCnt !== null && cnt === lastCnt) {
           setDataQualityStatus('Disconnected');
@@ -162,7 +163,7 @@ function Dashboard() {
     }
 
     
-  }, [location]);
+  }, [location, lastCnt, selectedSource]);
 
   const handleNotificationClose = () => {
     setNotification(null);
@@ -291,6 +292,7 @@ function Dashboard() {
             {notification}
           </Alert>
         </Snackbar>
+        <IntelligenceAssistant source="IoT" />
       </Box>
     );
   } else if (selectedSource === '2') {
@@ -397,7 +399,8 @@ function Dashboard() {
               </Box>
             </Card>
           </Grid>
-      </Grid>
+        </Grid>
+        <IntelligenceAssistant source="Stock" />
       </Box>
     );
 
@@ -486,6 +489,7 @@ function Dashboard() {
             {notification}
           </Alert>
         </Snackbar>
+        <IntelligenceAssistant source="Healthcare" />
       </Box>
     );
   }

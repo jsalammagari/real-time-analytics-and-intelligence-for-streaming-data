@@ -3,9 +3,9 @@ const router = express.Router();
 
 // Sample data sources
 const dataSources = [
-  { id: 1, name: 'IOT Data', description: 'Smoke detection dataset' },
+  { id: 1, name: 'IOT Data', description: 'Smoke detection data' },
   { id: 2, name: 'Financial Data', description: 'Stock market data' },
-  { id: 3, name: 'Healthcare Data', description: 'Covid-19 cases in 2020' },
+  { id: 3, name: 'Healthcare Data', description: 'Vitals Data' },
 ];
 
 // GET /api/data-sources

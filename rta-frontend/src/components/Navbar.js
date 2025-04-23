@@ -42,7 +42,7 @@ function Navbar() {
           <Button color="inherit" startIcon={<DashboardIcon />} onClick={() => navigateTo('/dashboard')}>
             Dashboard
           </Button>
-          <Button color="inherit" startIcon={<ScatterPlotIcon />} onClick={() => navigateTo('/pattern-definition')}>
+          {/* <Button color="inherit" startIcon={<ScatterPlotIcon />} onClick={() => navigateTo('/pattern-definition')}>
             Pattern Definition
           </Button>
           <Button color="inherit" startIcon={<FunctionsIcon />} onClick={() => navigateTo('/model-config')}>
@@ -50,7 +50,7 @@ function Navbar() {
           </Button>
           <Button color="inherit" startIcon={<InsightsIcon />} onClick={() => navigateTo('/visualization')}>
             Visualization
-          </Button>
+          </Button> */}
           <Button color="inherit" startIcon={<SettingsIcon />} onClick={() => navigateTo('/settings')}>
             Settings
           </Button>
