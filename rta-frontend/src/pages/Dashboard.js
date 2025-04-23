@@ -20,7 +20,8 @@ function Dashboard() {
   const [lastCnt, setLastCnt] = useState(null); 
   const [latestData, setLatestData] = useState({ TVOC: 0, eCO2: 0, PM1: 0, PM2_5: 0 });
   const [aqiData, setAqiData] = useState([]);
-
+  const [stockChartData, setStockChartData] = useState([]);
+  const [latestStock, setLatestStock] = useState({});
   const [vitalChartData, setVitalChartData] = useState([]);
   const [latestVitals, setLatestVitals] = useState({});
   
@@ -101,6 +102,37 @@ function Dashboard() {
     }
 
     if (sources === '2') {
+      const eventSource = new EventSource('http://localhost:5000/api/stock-stream');
+
+      eventSource.onmessage = (event) => {
+        const newData = JSON.parse(event.data);
+        const time = new Date(newData.TimeStamp).toLocaleTimeString();
+  
+        const parsed = {
+          time,
+          AAPL: parseFloat(newData.AAPL),
+          MSFT: parseFloat(newData.MSFT),
+          NVDA: parseFloat(newData.NVDA),
+          SPY: parseFloat(newData.SPY),
+          QQQ: parseFloat(newData.QQQ),
+          IWM: parseFloat(newData.IWM),
+          VIX: parseFloat(newData.VIX),
+        };
+  
+        setStockChartData(prev => [...prev.slice(-5), parsed]);
+        setStockChartData(prev => {
+          const updated = [...prev.slice(-5), parsed];
+          setLatestStock(parsed);
+          return updated;
+        });
+      };
+  
+      eventSource.onerror = (err) => {
+        console.error('Stock stream error:', err);
+        eventSource.close();
+      };
+  
+      return () => eventSource.close();
     }
 
     if (sources === '3') {
@@ -267,7 +299,105 @@ function Dashboard() {
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
           Financial Data Dashboard
         </Typography>
-        {/* Add your financial data visualization components here */}
+        <Grid container spacing={3}>
+        {/* Market Summary Cards */}
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center' }}>
+              <CardContent>
+                <Typography variant="h6">AAPL</Typography>
+                <Typography variant="h5">${latestStock.AAPL || '--'}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center' }}>
+              <CardContent>
+                <Typography variant="h6">MSFT</Typography>
+                <Typography variant="h5">${latestStock.MSFT || '--'}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center' }}>
+              <CardContent>
+                <Typography variant="h6">SPY</Typography>
+                <Typography variant="h5">${latestStock.SPY || '--'}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ textAlign: 'center' }}>
+              <CardContent>
+                <Typography variant="h6">VIX</Typography>
+                <Typography variant="h5">{latestStock.VIX || '--'}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Tech Stocks Trend */}
+          <Grid item xs={12} md={6}>
+            <Card sx={{ padding: 2 }}>
+              <Typography variant="h6" textAlign="center" mb={2}>Tech Stocks Trend (AAPL, MSFT, NVDA)</Typography>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={stockChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="AAPL" stroke="#4caf50" name="AAPL" />
+                  <Line type="monotone" dataKey="MSFT" stroke="#2196f3" name="MSFT" />
+                  <Line type="monotone" dataKey="NVDA" stroke="#9c27b0" name="NVDA" />
+                </LineChart>
+              </ResponsiveContainer>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#4caf50' }} />
+                  <Typography variant="body2">AAPL</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#2196f3' }} />
+                  <Typography variant="body2">MSFT</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#9c27b0' }} />
+                  <Typography variant="body2">NVDA</Typography>
+                </Box>
+              </Box>
+            </Card>
+          </Grid>
+
+          {/* ETF Comparison */}
+          <Grid item xs={12} md={6}>
+            <Card sx={{ padding: 2 }}>
+              <Typography variant="h6" textAlign="center" mb={2}>ETF Comparison (SPY, QQQ, IWM)</Typography>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={stockChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="SPY" stroke="#ff9800" name="SPY" />
+                  <Line type="monotone" dataKey="QQQ" stroke="#00bcd4" name="QQQ" />
+                  <Line type="monotone" dataKey="IWM" stroke="#f44336" name="IWM" />
+                </LineChart>
+              </ResponsiveContainer>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#ff9800' }} />
+                  <Typography variant="body2">SPY</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#00bcd4' }} />
+                  <Typography variant="body2">QQQ</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#f44336' }} />
+                  <Typography variant="body2">IWM</Typography>
+                </Box>
+              </Box>
+            </Card>
+          </Grid>
+      </Grid>
       </Box>
     );
 
