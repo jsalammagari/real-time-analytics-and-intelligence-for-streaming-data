@@ -1,7 +1,15 @@
 // ===============use below code If you are using normal streaming=============
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const readline = require('readline');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 router.get('/', async (req, res) => {
   const streamUrl = "http://localhost:3001/healthcare-stream"; 
@@ -22,6 +30,42 @@ router.get('/', async (req, res) => {
     response.data.on('end', () => {
       res.end();
     });
+
+    const rl = readline.createInterface({
+      input: response.data,
+      crlfDelay: Infinity
+    });
+    
+    for await (const line of rl) {
+      if (!line.startsWith('data:')) continue;
+
+      const jsonString = line.replace(/^data:\s*/, '');
+      const data = JSON.parse(jsonString);
+
+      const {
+        ['UTC']: utc,
+        ['heart_rate']: heart_rate,
+        ['blood_pressure']: blood_pressure,
+        ['oxygen_saturation']: oxygen_saturation,
+        ['respiratory_rate']: respiratory_rate,
+        ['temperature']: temperature,
+        ['Label']: Label
+      } = data;
+
+      const { error } = await supabase.from('healthcare_dataset').insert([{
+        utc: new Date(utc),
+        heart_rate: parseFloat(heart_rate),
+        blood_pressure: parseFloat(blood_pressure),
+        oxygen_saturation: parseFloat(oxygen_saturation),
+        respiratory_rate: parseFloat(respiratory_rate),
+        temperature: parseFloat(temperature),
+        Label: parseInt(Label)
+      }]);
+
+      if (error) {
+        console.error('Insert error:', error);
+      }
+    }
 
   } catch (error) {
     console.error("Error connecting to data stream:", error);

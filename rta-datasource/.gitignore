@@ -1,4 +1,4 @@
 /node_modules
-smoke_detection_iot.csv
-CVD_Vital_SIgns.csv
+iot_dataset.csv
+healthcare_dataset.csv
 stock_dataset.csv
