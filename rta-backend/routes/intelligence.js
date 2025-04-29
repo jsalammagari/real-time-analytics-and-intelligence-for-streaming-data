@@ -7,17 +7,32 @@ const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-async function getSQLFromGroq(question) {
-  const prompt = `
-You are a SQL expert assistant. Convert this question into a SQL query for a PostgreSQL database.
+async function getSQLFromGroq(question, source) {
 
-Table name: smoke_detection  
-Columns: utc (timestamp), temperature (float), humidity (float), tvoc (int), eco2 (int), raw_h2 (int), raw_ethanol (int), pressure (float), pm1 (float), pm2_5 (float), nc0_5 (float), nc1_0 (float), nc2_5 (float), cnt (int), fire_alarm (boolean)
+  var prompt = '';
 
-Question: ${question}
-
-Respond ONLY with the SQL query.
-  `;
+  if(source === 'IoT') {
+    prompt = `
+      You are a SQL expert assistant. Convert this question into a SQL query for a PostgreSQL database.
+      Table name: iot_dataset  
+      Columns: utc (timestamp), temperature (float), humidity (float), tvoc (int), eco2 (int), raw_h2 (int), raw_ethanol (int), pressure (float), pm1 (float), pm2_5 (float), nc0_5 (float), nc1_0 (float), nc2_5 (float), cnt (int), fire_alarm (boolean)
+      Question: ${question}
+      Respond ONLY with the SQL query. If you cannot directly answer by a SQL query, respond with "I cannot answer this question."`;
+  }else if(source === 'Stock') {
+    prompt = `
+      You are a SQL expert assistant. Convert this question into a SQL query for a PostgreSQL database.
+      Table name: stock_dataset
+      Columns: utc (timestamp), spy (float), qqq (float), iwm (float), aapl (float), msft (float), nvda (float), vix (float), 
+      Question: ${question}
+      Respond ONLY with the SQL query. If you cannot directly answer by a SQL query, respond with "I cannot answer this question."`;
+  }else{
+    prompt = `
+      You are a SQL expert assistant. Convert this question into a SQL query for a PostgreSQL database.
+      Table name: healthcare_dataset
+      Columns: utc (timestamp), heart_rate (float), blood_pressure (float), oxygen_saturation (float), respiratory_rate (float), temperature (float), Label (int), 
+      Question: ${question}
+      Respond ONLY with the SQL query. If you cannot directly answer by a SQL query, respond with "I cannot answer this question."`;
+  }
 
   const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
     model: 'llama3-70b-8192',
@@ -64,8 +79,7 @@ async function generateInsightfulReply(question, queryResult) {
     SQL query result: ${JSON.stringify(queryResult)}
 
     Generate a helpful, clear, and concise answer for the user based on this data.
-    Avoid technical jargon and write like you're explaining to a smart friend.
-      `;
+    Avoid technical jargon and write like you're explaining to a smart friend.`;
 
   try {
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
@@ -87,17 +101,22 @@ async function generateInsightfulReply(question, queryResult) {
 }
 
 router.post('/ask', async (req, res) => {
-  const { question } = req.body;
+  const { question, source } = req.body;
 
   try {
-    const sql = await getSQLFromGroq(question);
+    let aiReply = '';
+    const sql = await getSQLFromGroq(question, source);
     console.log('Generated SQL by Groq:', sql);
 
-    const result = await runQuery(sql);
-    console.log('Query Result:', result);
+    if(sql.includes('I cannot answer this question.')) {
+      return res.json({ reply: 'I cannot answer this question.' });
+    } else{
+      const result = await runQuery(sql);
+      console.log('Query Result:', result);
 
-    const aiReply = await generateInsightfulReply(question, result);
-    console.log('Generated Response:', aiReply);
+      aiReply = await generateInsightfulReply(question, result);
+      console.log('Generated Response:', aiReply);
+    }
     
     res.json({ reply: aiReply });
   } catch (err) {

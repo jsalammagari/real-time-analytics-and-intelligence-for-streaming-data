@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
         ['Fire Alarm']: fireAlarm
       } = data;
 
-      const { error } = await supabase.from('smoke_detection').insert([{
+      const { error } = await supabase.from('iot_dataset').insert([{
         utc: new Date(utc),
         temperature: parseFloat(temp),
         humidity: parseFloat(humidity),

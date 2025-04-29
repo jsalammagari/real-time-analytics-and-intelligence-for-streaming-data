@@ -12,7 +12,7 @@ let healthcareIndex = 0;
 let stockRows = [];
 let stockIndex = 0;
 
-fs.createReadStream('smoke_detection_iot.csv')
+fs.createReadStream('iot_dataset.csv')
   .pipe(csv())
   .on('data', (data) => iotRows.push(data))
   .on('end', () => {
@@ -23,13 +23,13 @@ fs.createReadStream('stock_dataset.csv')
   .pipe(csv())
   .on('data', (data) => stockRows.push(data))
   .on('end', () => {
-    console.log('Stock CSV file successfully processed');
+    console.log('Stock- CSV file successfully processed');
   });
 
-fs.createReadStream('CVD_Vital_SIgns.csv')
+fs.createReadStream('healthcare_dataset.csv')
   .pipe(csv())
   .on('data', (data) => healthcareRows.push(data))
-  .on('end', () => console.log('Healthcare CSV loaded'));
+  .on('end', () => console.log('Healthcare- CSV loaded'));
 
 app.get('/iot-stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

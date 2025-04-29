@@ -1,7 +1,15 @@
 // ===============use below code If you are using normal streaming=============
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const readline = require('readline');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 router.get('/', async (req, res) => {
   const streamUrl = "http://localhost:3001/stock-stream"; 
@@ -22,6 +30,44 @@ router.get('/', async (req, res) => {
     response.data.on('end', () => {
       res.end();
     });
+
+    const rl = readline.createInterface({
+      input: response.data,
+      crlfDelay: Infinity
+    });
+    
+    for await (const line of rl) {
+      if (!line.startsWith('data:')) continue;
+
+      const jsonString = line.replace(/^data:\s*/, '');
+      const data = JSON.parse(jsonString);
+
+      const {
+        ['UTC']: utc,
+        ['SPY']: spy,
+        ['QQQ']: qqq,
+        ['IWM']: iwm,
+        ['AAPL']: aapl,
+        ['MSFT']: msft,
+        ['NVDA']: nvda,
+        ['VIX']: vix
+      } = data;
+
+      const { error } = await supabase.from('stock_dataset').insert([{
+        utc: new Date(utc),
+        spy: parseFloat(spy),
+        qqq: parseFloat(qqq),
+        iwm: parseFloat(iwm),
+        aapl: parseFloat(aapl),
+        msft: parseFloat(msft),
+        nvda: parseFloat(nvda),
+        vix: parseFloat(vix)
+      }]);
+
+      if (error) {
+        console.error('Insert error:', error);
+      }
+    }
 
   } catch (error) {
     console.error("Error connecting to data stream:", error);

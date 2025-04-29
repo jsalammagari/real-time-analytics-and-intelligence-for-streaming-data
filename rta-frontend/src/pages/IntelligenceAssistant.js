@@ -17,7 +17,7 @@ const IntelligenceAssistant = ({ source }) => {
       const res = await fetch('http://localhost:5000/api/intelligence/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: input }),
+        body: JSON.stringify({ question: input, source }),
       });
 
       const data = await res.json();
@@ -101,7 +101,7 @@ const IntelligenceAssistant = ({ source }) => {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
       />
-      <Button fullWidth onClick={sendMessage} sx={{ mt: 1 }} variant="contained">
+      <Button fullWidth onClick={sendMessage} sx={{ mt: 1, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark', color: 'white'} }} variant="contained">
         Send
       </Button>
     </Paper>

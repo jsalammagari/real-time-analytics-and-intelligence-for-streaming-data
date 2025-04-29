@@ -107,7 +107,7 @@ function Dashboard() {
 
       eventSource.onmessage = (event) => {
         const newData = JSON.parse(event.data);
-        const time = new Date(newData.TimeStamp).toLocaleTimeString();
+        const time = new Date(newData.UTC).toLocaleTimeString();
   
         const parsed = {
           time,
