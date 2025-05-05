@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, TextField, Typography, Button, Divider, IconButton, Paper } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { INTELLIGENCE_URL } from '../config'
 
 const IntelligenceAssistant = ({ source }) => {
   const [messages, setMessages] = useState([]);
@@ -14,7 +15,7 @@ const IntelligenceAssistant = ({ source }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const res = await fetch('http://localhost:5000/api/intelligence/ask', {
+      const res = await fetch(INTELLIGENCE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: input, source }),

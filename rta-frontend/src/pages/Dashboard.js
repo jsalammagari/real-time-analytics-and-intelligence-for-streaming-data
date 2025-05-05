@@ -7,6 +7,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import IntelligenceAssistant from './IntelligenceAssistant';
+import { IOT_STREAM_URL,STOCK_STREAM_URL,HEALTHCARE_STREAM_URL } from '../config'
 
 function Dashboard() {
   const [selectedSource, setSelectedSource] = useState(null);
@@ -34,7 +35,7 @@ function Dashboard() {
     console.log('Selected:', selectedSource, queryParams.get('selected'));
 
     if (sources === '1') {
-      const eventSource = new EventSource('http://localhost:5000/api/iot-stream');
+      const eventSource = new EventSource(IOT_STREAM_URL);
 
       eventSource.onmessage = (event) => {
         const newData = JSON.parse(event.data);
@@ -85,7 +86,7 @@ function Dashboard() {
         eventSource.close();
       };
 
-      const anomalyStream = new EventSource('http://localhost:5000/api/iot-stream-anomaly');
+      const anomalyStream = new EventSource('http://localhost:5050/api/iot-stream-anomaly');
       anomalyStream.onmessage = (event) => {
         const anomalyData = JSON.parse(event.data);
         console.log('Received anomaly data:', anomalyData);
@@ -103,7 +104,7 @@ function Dashboard() {
     }
 
     if (sources === '2') {
-      const eventSource = new EventSource('http://localhost:5000/api/stock-stream');
+      const eventSource = new EventSource(STOCK_STREAM_URL);
 
       eventSource.onmessage = (event) => {
         const newData = JSON.parse(event.data);
@@ -137,7 +138,7 @@ function Dashboard() {
     }
 
     if (sources === '3') {
-      const eventSource = new EventSource('http://localhost:5000/api/healthcare-stream');
+      const eventSource = new EventSource(HEALTHCARE_STREAM_URL);
   
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);

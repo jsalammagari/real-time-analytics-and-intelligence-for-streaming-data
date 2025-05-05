@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Typography, Card, CardContent, Radio, FormControlLabel, Grid, Button, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { DATA_SOURCE_URL,SELECTED_SOURCE_URL } from '../config'
 
 function DataSourceSelection() {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ function DataSourceSelection() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/data-sources')
+    axios.get(DATA_SOURCE_URL)
       .then(response => {
         setDataSources(response.data);
         setLoading(false);
@@ -29,7 +30,7 @@ function DataSourceSelection() {
     if (!selectedSource) {
       alert("Please select a data source.");
     } else {
-      axios.post('http://localhost:5000/api/data-sources/selected-sources', { selectedSources: selectedSource})
+      axios.post(SELECTED_SOURCE_URL, { selectedSources: selectedSource})
         .then(response => {
           console.log('Selected data source submitted successfully:', response.data);
           navigate(`/dashboard?selected=${selectedSource}`);
