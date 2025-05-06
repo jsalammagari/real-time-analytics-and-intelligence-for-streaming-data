@@ -8,6 +8,8 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import IntelligenceAssistant from './IntelligenceAssistant';
 import { IOT_STREAM_URL,STOCK_STREAM_URL,HEALTHCARE_STREAM_URL } from '../config'
+import DeviceThermostatIcon from '@mui/icons-material/DeviceThermostat';
+import AirIcon from '@mui/icons-material/Air';
 
 function Dashboard() {
   const [selectedSource, setSelectedSource] = useState(null);
@@ -139,7 +141,6 @@ function Dashboard() {
 
     if (sources === '3') {
       const eventSource = new EventSource(HEALTHCARE_STREAM_URL);
-  
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         setLatestVitals(data);
@@ -154,16 +155,12 @@ function Dashboard() {
           setNotification(`⚠️ Alert for patient ${data.subject_id}: Low SpO2 or High Temp`);
         }
       };
-
-      eventSource.onerror = (err) => {
-        console.error('Healthcare stream error:', err);
+      eventSource.onerror = () => {
+        console.error('Healthcare stream error');
         eventSource.close();
       };
-
       return () => eventSource.close();
     }
-
-    
   }, [location, lastCnt, selectedSource]);
 
   const handleNotificationClose = () => {
@@ -411,10 +408,9 @@ function Dashboard() {
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
           Healthcare Data Dashboard
         </Typography>
-        
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px', height: '100%' }}>
               <CardContent>
                 <FavoriteIcon style={{ fontSize: 50, color: '#f44336' }} />
                 <Typography variant="h6">Heart Rate</Typography>
@@ -422,9 +418,8 @@ function Dashboard() {
               </CardContent>
             </Card>
           </Grid>
-
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px', height: '100%' }}>
               <CardContent>
                 <MonitorHeartIcon style={{ fontSize: 50, color: '#2196f3' }} />
                 <Typography variant="h6">Oxygen Saturation</Typography>
@@ -432,25 +427,25 @@ function Dashboard() {
               </CardContent>
             </Card>
           </Grid>
-
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px', height: '100%' }}>
               <CardContent>
+                <DeviceThermostatIcon style={{ fontSize: 50, color: '#ff9800' }} />
                 <Typography variant="h6">Temperature</Typography>
                 <Typography variant="h5">{latestVitals.temperature} °C</Typography>
               </CardContent>
             </Card>
           </Grid>
-
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ textAlign: 'center', borderRadius: '12px' }}>
+            <Card sx={{ textAlign: 'center', borderRadius: '12px', height: '100%' }}>
               <CardContent>
+                <AirIcon style={{ fontSize: 50, color: '#9c27b0' }} />
                 <Typography variant="h6">Respiratory Rate</Typography>
                 <Typography variant="h5">{latestVitals.respiratory_rate} bpm</Typography>
               </CardContent>
             </Card>
           </Grid>
-
+  
           <Grid item xs={12}>
             <Card sx={{ padding: '20px', borderRadius: '12px' }}>
               <Typography variant="h6" sx={{ textAlign: 'center', marginBottom: 2 }}>
@@ -467,29 +462,16 @@ function Dashboard() {
                   <Line type="monotone" dataKey="temperature" stroke="#ff9800" name="Temperature" />
                 </LineChart>
               </ResponsiveContainer>
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#f44336' }} />
-                  <Typography variant="body2">Heart Rate</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#2196f3' }} />
-                  <Typography variant="body2">Resp. Rate</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#ff9800' }} />
-                  <Typography variant="body2">Temperature</Typography>
-                </Box>
-              </Box>
             </Card>
           </Grid>
         </Grid>
-
+  
         <Snackbar open={!!notification} autoHideDuration={10000} onClose={handleNotificationClose}>
           <Alert severity="warning" onClose={handleNotificationClose}>
             {notification}
           </Alert>
         </Snackbar>
+  
         <IntelligenceAssistant source="Healthcare" />
       </Box>
     );

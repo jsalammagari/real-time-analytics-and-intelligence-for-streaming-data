@@ -1,7 +1,8 @@
-# main.py
+# main.py (regenerated with greeting handler and LangGraph agent)
 
 import os
 import json
+import re
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -13,8 +14,6 @@ from supabase import create_client
 
 load_dotenv()
 
-# --- Environment Variables ---
-#OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1",
@@ -23,12 +22,8 @@ llm = ChatOpenAI(
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
-
-# --- Clients ---
-#llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Agent State ---
 class AgentState(TypedDict):
     question: str
     source: str
@@ -36,43 +31,57 @@ class AgentState(TypedDict):
     result: list
     reply: str
 
-# --- Tools ---
+greeting_keywords = ["hi", "hello", "hey", "how are you", "good morning", "good evening", "what's up"]
+
+def is_greeting(text: str) -> bool:
+    text = text.lower().strip()
+    return any(kw in text for kw in greeting_keywords)
+
+@tool
+def handle_greeting_tool(question: str) -> str:
+    """Respond like a human to greetings or casual conversation."""
+    prompt = f"""
+    Respond naturally and casually as if you're having a light human conversation.
+    Message: "{question}"
+    """
+    return llm.invoke(prompt).content.strip()
 
 @tool
 def generate_sql_tool(question: str, source: str) -> str:
-    """Generate a SQL query for a given question and data source."""
+    """Generate SQL query for the question based on the source table."""
     if source == "IoT":
         prompt = f"""
         Convert this into a SQL query.
         Table: iot_dataset (utc, temperature, humidity, tvoc, eco2, raw_h2, raw_ethanol, pressure, pm1, pm2_5, nc0_5, nc1_0, nc2_5, cnt, fire_alarm)
         Question: {question}
-        Respond only with SQL or say "I cannot answer this question."
+        Respond only with SQL or say \"I cannot answer this question.\"
         """
     elif source == "Stock":
         prompt = f"""
         Convert this into a SQL query.
         Table: stock_dataset (utc, spy, qqq, iwm, aapl, msft, nvda, vix)
         Question: {question}
-        Respond only with SQL or say "I cannot answer this question."
+        Respond only with SQL or say \"I cannot answer this question.\"
         """
     else:
         prompt = f"""
         Convert this into a SQL query.
         Table: healthcare_dataset (utc, heart_rate, blood_pressure, oxygen_saturation, respiratory_rate, temperature, Label)
         Question: {question}
-        Respond only with SQL or say "I cannot answer this question."
+        Respond only with SQL or say \"I cannot answer this question.\"
         """
     return llm.invoke(prompt).content.strip()
 
 @tool
 def run_sql_tool(sql: str) -> str:
-    """Execute a SQL query using Supabase RPC."""
-    sql = sql.strip().strip("`")
+    """Execute the SQL using Supabase RPC and return JSON result."""
+    #sql = sql.strip().strip("`")
+    sql = re.sub(r"```sql\\s*", "", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"```", "", sql).strip()
     if sql.lower().startswith("```sql"):
         sql = sql[6:].strip("`").strip()
     if sql.endswith(";"):
         sql = sql[:-1].strip()
-
     try:
         res = supabase.rpc("execute_sql", {"query_text": sql}).execute()
         if hasattr(res, "error") and res.error:
@@ -85,9 +94,9 @@ def run_sql_tool(sql: str) -> str:
 
 @tool
 def summarize_result_tool(question: str, result: str) -> str:
-    """Summarize a SQL result for the user."""
+    """Summarize SQL result for user question."""
     prompt = f"""
-    The user asked: "{question}"
+    The user asked: \"{question}\"
     SQL Result: {result}
 
     Summarize this in a clear and concise way.
@@ -96,17 +105,21 @@ def summarize_result_tool(question: str, result: str) -> str:
 
 @tool
 def fallback_llm_tool(question: str) -> str:
-    """Answer using general knowledge if SQL fails or returns nothing."""
+    """Use general knowledge to answer question if SQL fails."""
     prompt = f"""
     Answer the following question clearly and directly using your general knowledge:
 
-    "{question}"
+    \"{question}\"
 
     Do not say you don't have access to real-time data. Provide the best possible answer.
     """
     return llm.invoke(prompt).content.strip()
 
 # --- LangGraph Nodes ---
+
+def handle_greeting_node(state: AgentState):
+    reply = handle_greeting_tool.invoke({"question": state["question"]})
+    return {**state, "reply": reply}
 
 def generate_sql_node(state: AgentState):
     sql = generate_sql_tool.invoke({"question": state["question"], "source": state["source"]})
@@ -129,7 +142,10 @@ def fallback_node(state: AgentState):
     reply = fallback_llm_tool.invoke({"question": state["question"]})
     return {**state, "reply": reply}
 
-# --- LangGraph Flow Logic ---
+# --- LangGraph Conditions ---
+
+def check_greeting_condition(state: AgentState):
+    return "greeting" if is_greeting(state["question"]) else "generate_sql"
 
 def check_sql_condition(state: AgentState):
     if not state["sql"] or "I cannot answer" in state["sql"]:
@@ -145,12 +161,17 @@ def check_result_condition(state: AgentState):
 # --- LangGraph Setup ---
 
 graph = StateGraph(AgentState)
+graph.add_node("handle_greeting", handle_greeting_node)
 graph.add_node("generate_sql", generate_sql_node)
 graph.add_node("run_sql", run_sql_node)
 graph.add_node("summarize", summarize_node)
 graph.add_node("fallback", fallback_node)
 
-graph.set_entry_point("generate_sql")
+graph.set_entry_point("handle_greeting")
+graph.add_conditional_edges("handle_greeting", check_greeting_condition, {
+    "greeting": END,
+    "generate_sql": "generate_sql"
+})
 graph.add_conditional_edges("generate_sql", check_sql_condition, {
     "run_sql": "run_sql",
     "fallback": "fallback"
@@ -164,8 +185,6 @@ graph.add_edge("fallback", END)
 
 app_graph = graph.compile()
 
-# --- FastAPI Setup ---
-
 app = FastAPI()
 
 class AskRequest(BaseModel):
@@ -177,7 +196,12 @@ async def ask(req: AskRequest):
     print(f"Incoming request: question='{req.question}', source='{req.source}'")
     try:
         result = app_graph.invoke({"question": req.question, "source": req.source})
-        return {"reply": result["reply"]}
+        return {
+    "reply": result["reply"],
+    "sql": result.get("sql"),
+    "result": result.get("result")
+}
+
     except Exception as e:
         print("Agent execution error:", str(e))
         raise

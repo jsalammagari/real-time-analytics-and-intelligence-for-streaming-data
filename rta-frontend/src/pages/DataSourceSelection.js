@@ -1,8 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Card, CardContent, Radio, FormControlLabel, Grid, Button, Box } from '@mui/material';
+import {
+  Typography,
+  Card,
+  CardContent,
+  Radio,
+  FormControlLabel,
+  Grid,
+  Button,
+  Box,
+  CircularProgress
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { DATA_SOURCE_URL,SELECTED_SOURCE_URL } from '../config'
+import { DATA_SOURCE_URL, SELECTED_SOURCE_URL } from '../config';
+
+// Optional: Uncomment if using npm-installed font
+// import '@fontsource/poppins/400.css';
+// import '@fontsource/poppins/600.css';
 
 function DataSourceSelection() {
   const navigate = useNavigate();
@@ -12,11 +26,11 @@ function DataSourceSelection() {
 
   useEffect(() => {
     axios.get(DATA_SOURCE_URL)
-      .then(response => {
+      .then((response) => {
         setDataSources(response.data);
         setLoading(false);
       })
-      .catch(error => {
+      .catch((error) => {
         console.error('Error fetching data sources:', error);
         setLoading(false);
       });
@@ -29,44 +43,75 @@ function DataSourceSelection() {
   const handleSubmit = () => {
     if (!selectedSource) {
       alert("Please select a data source.");
-    } else {
-      axios.post(SELECTED_SOURCE_URL, { selectedSources: selectedSource})
-        .then(response => {
-          console.log('Selected data source submitted successfully:', response.data);
-          navigate(`/dashboard?selected=${selectedSource}`);
-        })
-        .catch(error => {
-          console.error('Error submitting selected source:', error);
-          alert('An error occurred while submitting the data source');
-        });
+      return;
     }
+
+    axios.post(SELECTED_SOURCE_URL, { selectedSources: selectedSource })
+      .then((response) => {
+        console.log('Selected data source submitted successfully:', response.data);
+        navigate(`/dashboard?selected=${selectedSource}`);
+      })
+      .catch((error) => {
+        console.error('Error submitting selected source:', error);
+        alert('An error occurred while submitting the data source');
+      });
   };
 
   return (
-    <Box sx={{ padding: '20px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#333', textAlign: 'center' }}>
-        Data Source Selection
+    <Box
+      sx={{
+        px: { xs: 2, sm: 4 },
+        py: 4,
+        backgroundColor: '#f8f9fa',
+        minHeight: '100vh',
+        fontFamily: 'Poppins, Roboto, sans-serif',
+      }}
+    >
+      <Typography
+        variant="h4"
+        sx={{
+          fontFamily: 'Poppins, Roboto, sans-serif',
+          fontWeight: 600,
+          textAlign: 'center',
+          color: '#2c3e50',
+          mb: 4,
+          letterSpacing: '0.5px',
+        }}
+      >
+        Select a Data Source
       </Typography>
+
       {loading ? (
-        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', marginTop: '20px' }}>
-          Loading data sources...
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
       ) : dataSources.length === 0 ? (
-        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', marginTop: '20px' }}>
+        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center' }}>
           No data sources available.
         </Typography>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={4} justifyContent="center">
           {dataSources.map((dataSource) => (
             <Grid item xs={12} sm={6} md={4} key={dataSource.id}>
-              <Card sx={{
-                borderRadius: '15px',
-                boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
-                padding: '10px',
-                transition: 'transform 0.3s',
-                '&:hover': { transform: 'scale(1.05)' },
-                backgroundColor: '#fafafa'
-              }}>
+              <Card
+                onClick={() => setSelectedSource(dataSource.id.toString())}
+                sx={{
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  boxShadow: selectedSource === dataSource.id.toString()
+                    ? '0 4px 20px rgba(25, 118, 210, 0.3)'
+                    : '0px 2px 8px rgba(0, 0, 0, 0.1)',
+                  transform: selectedSource === dataSource.id.toString()
+                    ? 'scale(1.03)'
+                    : 'scale(1)',
+                  '&:hover': {
+                    boxShadow: '0 6px 24px rgba(25, 118, 210, 0.25)',
+                    transform: 'scale(1.03)',
+                  },
+                  backgroundColor: '#fff',
+                }}
+              >
                 <CardContent>
                   <FormControlLabel
                     control={
@@ -77,9 +122,13 @@ function DataSourceSelection() {
                         color="primary"
                       />
                     }
-                    label={dataSource.name}
+                    label={
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        {dataSource.name}
+                      </Typography>
+                    }
                   />
-                  <Typography variant="body2" color="textSecondary">
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
                     {dataSource.description}
                   </Typography>
                 </CardContent>
@@ -88,18 +137,29 @@ function DataSourceSelection() {
           ))}
         </Grid>
       )}
-      <Box sx={{ textAlign: 'center', marginTop: '20px' }}>
+
+      <Box sx={{ textAlign: 'center', mt: 5 }}>
         <Button
           variant="contained"
+          size="large"
           color="primary"
-          sx={{
-            backgroundColor: '#1976d2',
-            '&:hover': { backgroundColor: '#1565c0' },
-            padding: '10px 20px',
-            fontWeight: 'bold',
-            fontSize: '16px'
-          }}
           onClick={handleSubmit}
+          disabled={!selectedSource}
+          sx={{
+            px: 5,
+            py: 1.5,
+            fontWeight: 'bold',
+            borderRadius: '8px',
+            fontSize: '16px',
+            textTransform: 'uppercase',
+            opacity: selectedSource ? 1 : 0.6,
+            boxShadow: selectedSource ? '0px 4px 10px rgba(0, 0, 0, 0.1)' : 'none',
+            color: selectedSource ? 'white' : 'rgba(255,255,255,0.8)',
+            backgroundColor: selectedSource ? 'primary.main' : '#90caf9',
+            '&:hover': {
+              backgroundColor: selectedSource ? 'primary.dark' : '#90caf9',
+            },
+          }}
         >
           Confirm Selection
         </Button>

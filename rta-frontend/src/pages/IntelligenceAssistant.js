@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Box, TextField, Typography, Button, Divider, IconButton, Paper } from '@mui/material';
+import {
+  Box, TextField, Typography, Button,
+  Divider, IconButton, Paper
+} from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { INTELLIGENCE_URL } from '../config'
+import { INTELLIGENCE_URL } from '../config';
 
 const IntelligenceAssistant = ({ source }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -22,38 +25,66 @@ const IntelligenceAssistant = ({ source }) => {
       });
 
       const data = await res.json();
-      setMessages((prev) => [...prev, { sender: 'ai', text: data.reply || 'No response.' }]);
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'ai', text: data.reply || 'No response.' }
+      ]);
     } catch (err) {
-      setMessages((prev) => [...prev, { sender: 'ai', text: '❌ Failed to contact AI.' }]);
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'ai', text: '❌ Failed to contact AI.' }
+      ]);
     }
 
     setInput('');
   };
 
-  if (!isOpen) return (
-    <Box
-      sx={{
-        position: 'fixed', right: 0, top: '50%', transform: 'translateY(-50%)',
-        zIndex: 1000, backgroundColor: '#1976d2', padding: '8px', borderTopRightRadius: 12, borderBottomRightRadius: 12
-      }}
-    >
-      <Button variant="contained" onClick={() => setIsOpen(true)}>AI</Button>
-    </Box>
-  );
+  if (!isOpen) {
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 1000
+        }}
+      >
+        <Button
+          variant="contained"
+          onClick={() => setIsOpen(true)}
+          sx={{
+            borderRadius: '4px',
+            boxShadow: 'none',
+            minWidth: 'auto',
+            padding: '6px 16px',
+            backgroundColor: 'primary.main',
+            color: 'white',
+            '&:hover': {
+              backgroundColor: 'primary.dark',
+              color: 'white'
+            }
+          }}
+        >
+          AI
+        </Button>
+      </Box>
+    );
+  }
 
   return (
-    <Paper elevation={4}
+    <Paper
+      elevation={4}
       sx={{
         position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 300,
+        bottom: 24,
+        right: 24,
+        width: 320,
+        maxHeight: '80vh',
         zIndex: 1300,
         backgroundColor: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        borderRight: '1px solid #ddd',
+        borderRadius: 2,
         p: 2,
       }}
     >
@@ -102,7 +133,17 @@ const IntelligenceAssistant = ({ source }) => {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
       />
-      <Button fullWidth onClick={sendMessage} sx={{ mt: 1, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark', color: 'white'} }} variant="contained">
+      <Button
+        fullWidth
+        onClick={sendMessage}
+        sx={{
+          mt: 1,
+          bgcolor: 'primary.main',
+          color: 'white',
+          '&:hover': { bgcolor: 'primary.dark', color: 'white' }
+        }}
+        variant="contained"
+      >
         Send
       </Button>
     </Paper>

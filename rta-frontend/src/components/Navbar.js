@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Button, Menu, MenuItem, Box } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SourceIcon from '@mui/icons-material/Source';
@@ -29,14 +29,20 @@ function Navbar() {
   return (
     <AppBar position="static" sx={{ backgroundColor: '#1976d2' }}>
       <Toolbar>
-        { <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
+        <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
           <MenuIcon />
-        </IconButton> }
-        <Typography color="inherit" variant="h6" sx={{ flexGrow: 1 }}>
-          RTAISD
+        </IconButton>
+        <Typography
+          component={Link}
+          to="/"
+          color="inherit"
+          variant="h6"
+          sx={{ flexGrow: 1, textDecoration: 'none', cursor: 'pointer' }}
+        >
+          RTAI
         </Typography>
         <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-        <Button color="inherit" startIcon={<SourceIcon />} onClick={() => navigateTo('/')}>
+          <Button color="inherit" startIcon={<SourceIcon />} onClick={() => navigateTo('/')}>
             Data Source
           </Button>
           <Button color="inherit" startIcon={<DashboardIcon />} onClick={() => navigateTo('/dashboard')}>
