@@ -1,51 +1,58 @@
 # rta-agent-python
 
-This project implements a **LangGraph ReAct-style agent** for answering analytical questions using structured and unstructured data sources. The agent is designed for **real-time analytics and intelligence** in domains such as IoT, stock markets, and healthcare.
+This project implements a **LangGraph dual-agent architecture** for real-time analytics and intelligence. It features both:
+
+-  A **ReAct-style LangGraph agent** for answering analytical questions via SQL or fallback LLM.
+-  An **autonomous alert agent** that monitors **live healthcare data** and sends Gmail alerts on threshold breaches.
 
 ---
 
 ## What It Does
 
-* Accepts natural language questions via a `/ask` API.
-* Generates SQL queries using **Groq's LLaMA-3 model** via LangGraph nodes.
-* Executes SQL against **Supabase** datasets using a PostgreSQL RPC.
+### 📊 ReAct QA Agent (`/ask` endpoint)
+* Accepts natural language questions.
+* Generates SQL via **Groq's LLaMA-3** model.
+* Executes SQL using **Supabase RPC**.
 * Summarizes results in plain English.
-* Falls back to Groq LLM directly when:
+* Falls back to LLM when:
+  * SQL can't be generated
+  * SQL returns empty results
 
-  * SQL cannot be generated
-  * SQL executes but returns no results
+### 🔔 Autonomous Healthcare Alert Agent
+* Listens to **live `/healthcare-stream`** sensor data.
+* Accepts alert instructions like:
+  * `Alert me when temperature > 38`
+  * `Notify me if oxygen_saturation < 95`
+* Parses user prompt into a valid condition.
+* Evaluates incoming data against condition.
+* Sends **Gmail alerts via OAuth2** with custom, human-friendly messages.
 
 ---
 
-## Agent Architecture (LangGraph + ReAct)
+## LangGraph Agent Architecture
 
-```
+```text
 [Input Question]
       ↓
-[Node] Generate SQL (Groq)
+[Generate SQL] ──▶ [Fallback: LLM if no SQL]
       ↓
-[Condition]
-      ├─ No SQL or invalid → Fallback LLM (Groq)
+[Run SQL]      ──▶ [Fallback: LLM if empty result]
       ↓
-[Node] Run SQL (Supabase RPC)
+[Summarize Result]
       ↓
-[Condition]
-      ├─ Empty results → Fallback LLM (Groq)
-      ↓
-[Node] Summarize Result (Groq)
-      ↓
-[Output Answer]
+[Answer]
 ```
 
 ---
 
 ## Tech Stack
 
-* **LangGraph** for ReAct-style agent loop
-* **LangChain** & `langchain-community` for model/tool abstractions
-* **Groq API** running **LLaMA-3** for fast and cheap LLM usage
-* **Supabase** for SQL execution via custom RPC function
-* **FastAPI** for serving the `/ask` endpoint
+* **LangGraph** – graph-based control flow for agents
+* **LangChain** – LLM tool abstraction
+* **Groq (LLaMA-3)** – fast, cost-efficient LLM
+* **Supabase** – real-time SQL backend with RPC
+* **FastAPI** – `/ask` endpoint
+* **Gmail API (OAuth2)** – alert delivery
 
 ---
 
@@ -64,76 +71,86 @@ cd rta-agent-python
 pip install -r requirements.txt
 ```
 
-> If `requirements.txt` is missing, manually run:
-
+If missing:
 ```bash
-pip install fastapi uvicorn python-dotenv langchain langchain-community langgraph supabase
+pip install fastapi uvicorn python-dotenv langchain langchain-community langgraph supabase google-auth google-auth-oauthlib google-api-python-client
 ```
 
 ### 3. Create `.env`
 
 ```env
-GROQ_API_KEY=your_groq_api_key
+GROQ_API_KEY=your_groq_key
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_key
+SUPABASE_ANON_KEY=your_anon_key
+ALERT_RECIPIENT=you@gmail.com
 ```
 
-> Optionally, for OpenAI fallback testing:
+> Keep `credentials.json` and `token.json` in `.gitignore`
 
-```env
-OPENAI_API_KEY=your_openai_api_key
+---
+
+## Run the Agent
+
+###  ReAct QA Server:
+```bash
+uvicorn main:app --reload --port 8001
+```
+
+###  (Optional) Manual Alert Agent:
+```bash
+python alert_agent.py
 ```
 
 ---
 
-## Run the Server
+## Using `/ask`
 
 ```bash
-uvicorn main:app --reload --port 8000
-```
-
-Now you can hit the API:
-
-```bash
-curl -X POST http://localhost:8000/ask \
+curl -X POST http://localhost:8001/ask \
   -H "Content-Type: application/json" \
-  -d '{"question": "What is the average temperature today?", "source": "IoT"}'
+  -d '{"question": "What is the average temperature in the last hour?", "source": "IoT"}'
 ```
+
+### Example alert prompt:
+```json
+{
+  "question": "Alert me when temperature > 38",
+  "source": "Healthcare"
+}
+```
+
+This dynamically launches the background agent.
 
 ---
 
-## ✅ Recent Changes
+## ✅ Features
 
-* ✅ Switched LLM backend to **Groq's LLaMA-3**
-* ✅ Built a full **LangGraph ReAct agent**
-* ✅ Added fallback logic for unanswerable/empty SQL results
-* ✅ Clean prompt engineering for SQL generation + summarization
-* ✅ Modular tool definitions and conditional edges
-* ✅ FastAPI endpoint `/ask` for external use
+- ✅ Dual-agent architecture (ReAct + Autonomous)
+- ✅ Live stream monitoring on `/healthcare-stream`
+- ✅ Alert parsing from natural-language prompts
+- ✅ Safe `eval()`-based condition execution
+- ✅ Real-time Gmail alerts with human-readable messages
+- ✅ Clean console logs for debugging
 
 ---
 
 ## Structure
 
 ```bash
-main.py                 # FastAPI + LangGraph agent logic
-.env                    # API keys and credentials
-requirements.txt        # Dependencies
+main.py               # FastAPI + LangGraph ReAct QA
+alert_agent.py        # Streaming alert agent for Healthcare
+credentials.json      # (OAuth2 client file – not tracked)
+token.json            # (OAuth2 token – not tracked)
+.gitignore            # Make sure sensitive files are excluded
 ```
 
 ---
 
 ## Security Notes
 
-* Make sure `.env` is in your `.gitignore`
-* Never hardcode your API keys or expose them in version control
+- Keep `.env`, `credentials.json`, and `token.json` out of version control
+- Use OAuth2 app passwords or client credentials safely
 
 ---
-
-## Future Improvements
-
-* Add unit tests and validation for tool outputs
-* Deploy as container or serverless function
-* Support more domains/datasets dynamically
 
 ---
