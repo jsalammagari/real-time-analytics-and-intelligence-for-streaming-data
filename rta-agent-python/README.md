@@ -3,13 +3,13 @@
 This project implements a **LangGraph dual-agent architecture** for real-time analytics and intelligence. It features both:
 
 -  A **ReAct-style LangGraph agent** for answering analytical questions via SQL or fallback LLM.
--  An **autonomous alert agent** that monitors **live healthcare data** and sends Gmail alerts on threshold breaches.
+-  An **autonomous alert agent** that monitors live sensor data (Healthcare + IoT) and sends Gmail alerts when conditions are met or thresholds are breached.
 
 ---
 
 ## What It Does
 
-### 📊 ReAct QA Agent (`/ask` endpoint)
+###  ReAct QA Agent (`/ask` endpoint)
 * Accepts natural language questions.
 * Generates SQL via **Groq's LLaMA-3** model.
 * Executes SQL using **Supabase RPC**.
@@ -18,14 +18,15 @@ This project implements a **LangGraph dual-agent architecture** for real-time an
   * SQL can't be generated
   * SQL returns empty results
 
-### 🔔 Autonomous Healthcare Alert Agent
-* Listens to **live `/healthcare-stream`** sensor data.
-* Accepts alert instructions like:
-  * `Alert me when temperature > 38`
-  * `Notify me if oxygen_saturation < 95`
-* Parses user prompt into a valid condition.
-* Evaluates incoming data against condition.
-* Sends **Gmail alerts via OAuth2** with custom, human-friendly messages.
+###  Autonomous Alert Agent
+* Listens to **live `/healthcare-stream` and `/iot-stream`** data.
+* Accepts instructions like:
+  * `Notify me when fire_alarm == 1`
+  * `Alert me if tvoc > 150`
+* Parses to a valid Python condition.
+* Cleans and normalizes incoming data keys (e.g., `Fire Alarm` → `fire_alarm`).
+* Evaluates against condition in real time.
+* Sends **Gmail alerts via OAuth2** with timestamped summaries.
 
 ---
 
@@ -91,12 +92,12 @@ ALERT_RECIPIENT=you@gmail.com
 
 ## Run the Agent
 
-###  ReAct QA Server:
+### ReAct QA Server:
 ```bash
 uvicorn main:app --reload --port 8001
 ```
 
-###  (Optional) Manual Alert Agent:
+### (Optional) Standalone Alert Agent:
 ```bash
 python alert_agent.py
 ```
@@ -114,20 +115,21 @@ curl -X POST http://localhost:8001/ask \
 ### Example alert prompt:
 ```json
 {
-  "question": "Alert me when temperature > 38",
-  "source": "Healthcare"
+  "question": "Alert me when fire_alarm == 1",
+  "source": "IoT"
 }
 ```
 
-This dynamically launches the background agent.
+The system will now normalize `Fire Alarm` to `fire_alarm` and evaluate properly.
 
 ---
 
 ## ✅ Features
 
 - ✅ Dual-agent architecture (ReAct + Autonomous)
-- ✅ Live stream monitoring on `/healthcare-stream`
+- ✅ Live stream monitoring on `/healthcare-stream` and `/iot-stream`
 - ✅ Alert parsing from natural-language prompts
+- ✅ Key normalization (spaces → underscores, lowercase)
 - ✅ Safe `eval()`-based condition execution
 - ✅ Real-time Gmail alerts with human-readable messages
 - ✅ Clean console logs for debugging
@@ -138,7 +140,7 @@ This dynamically launches the background agent.
 
 ```bash
 main.py               # FastAPI + LangGraph ReAct QA
-alert_agent.py        # Streaming alert agent for Healthcare
+alert_agent.py        # Streaming alert agent for Healthcare + IoT
 credentials.json      # (OAuth2 client file – not tracked)
 token.json            # (OAuth2 token – not tracked)
 .gitignore            # Make sure sensitive files are excluded
@@ -150,7 +152,5 @@ token.json            # (OAuth2 token – not tracked)
 
 - Keep `.env`, `credentials.json`, and `token.json` out of version control
 - Use OAuth2 app passwords or client credentials safely
-
----
 
 ---

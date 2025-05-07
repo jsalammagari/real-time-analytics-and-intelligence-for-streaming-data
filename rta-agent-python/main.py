@@ -1,4 +1,4 @@
-# main.py 
+# main.py
 
 import os
 import json
@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from typing import TypedDict
 from langchain_core.tools import tool
 from supabase import create_client
-from alert_agent import alert_graph, parse_alert_condition_tool, stream_healthcare_data
+from alert_agent import alert_graph, parse_alert_condition_tool, stream_healthcare_data, stream_iot_data
 
 load_dotenv()
 
@@ -213,20 +213,20 @@ class AskRequest(BaseModel):
 async def ask(req: AskRequest):
     print(f"Incoming request: question='{req.question}', source='{req.source}'")
     try:
-        # ✅ Regex-based matching for broader alert phrasing
         if re.search(r"\b(alert|notify|warn)\b", req.question.lower()):
             parsed = parse_alert_condition_tool.invoke({"prompt": req.question})
             print("🧠 Parsed condition:", parsed)
 
             def monitor():
-                for row in stream_healthcare_data():
+                stream_func = stream_healthcare_data if req.source.lower() == "healthcare" else stream_iot_data
+                for row in stream_func():
                     result = alert_graph.invoke({"data": row, "condition": parsed})
                     print("🔔 Alert Agent Output:", json.dumps(result, indent=2))
 
             thread = threading.Thread(target=monitor, daemon=True)
             thread.start()
 
-            return {"reply": "✅ Alert agent is now monitoring based on your condition."}
+            return {"reply": f"✅ Alert agent is now monitoring {req.source} based on your condition."}
 
         result = app_graph.invoke({"question": req.question, "source": req.source})
         return {
