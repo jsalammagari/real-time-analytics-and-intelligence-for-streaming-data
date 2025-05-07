@@ -1,8 +1,9 @@
-# main.py (finalized with strict prompts and LangGraph agent)
+# main.py 
 
 import os
 import json
 import re
+import threading
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ from langgraph.graph import StateGraph, END
 from typing import TypedDict
 from langchain_core.tools import tool
 from supabase import create_client
+from alert_agent import alert_graph, parse_alert_condition_tool, stream_healthcare_data
 
 load_dotenv()
 
@@ -51,49 +53,40 @@ User: "{question}"
 Assistant:"""
     return llm.invoke(prompt).content.strip()
 
-
 @tool
 def generate_sql_tool(question: str, source: str) -> str:
-    """Generate a clean SQL SELECT query. Respond with I_CANNOT_ANSWER if not possible."""
+    """Generate a SQL SELECT query or return I_CANNOT_ANSWER if not possible."""
     if source == "IoT":
         prompt = f"""
-    You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
-    Table: iot_dataset (utc, temperature, humidity, tvoc, eco2, raw_h2, raw_ethanol, pressure, pm1, pm2_5, nc0_5, nc1_0, nc2_5, cnt, fire_alarm)
+You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
+Table: iot_dataset (utc, temperature, humidity, tvoc, eco2, raw_h2, raw_ethanol, pressure, pm1, pm2_5, nc0_5, nc1_0, nc2_5, cnt, fire_alarm)
+Use PostgreSQL syntax (e.g., CURRENT_TIMESTAMP - INTERVAL '1 hour').
+If the question involves AQI or air quality index, return a query that selects eco2, tvoc, pm1, pm2_5.
+Respond ONLY with SQL. No comments, markdown, or explanations. Return I_CANNOT_ANSWER if unsure.
 
-    Use PostgreSQL syntax (e.g., CURRENT_TIMESTAMP - INTERVAL '1 hour').
-
-    If the question involves AQI or air quality index, return a query that selects the most recent values of:
-    eco2, tvoc, pm1, pm2_5 — these are used to calculate AQI in the application.
-
-    Respond ONLY with a valid SQL SELECT query. No explanations. No markdown. No comments.
-    If unsure, return exactly: I_CANNOT_ANSWER
-
-    Question: {question}
-    """
-
+Question: {question}
+"""
     elif source == "Stock":
         prompt = f"""
-        You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
-        Table: stock_dataset (utc, spy, qqq, iwm, aapl, msft, nvda, vix)
-        Respond ONLY with a valid SQL query. No explanations. No markdown. No comments.
-        If unsure, return exactly: I_CANNOT_ANSWER
+You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
+Table: stock_dataset (utc, spy, qqq, iwm, aapl, msft, nvda, vix)
+Respond ONLY with SQL. No comments, markdown, or explanations. Return I_CANNOT_ANSWER if unsure.
 
-        Question: {question}
-        """
+Question: {question}
+"""
     else:
         prompt = f"""
-        You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
-        Table: healthcare_dataset (utc, heart_rate, blood_pressure, oxygen_saturation, respiratory_rate, temperature, Label)
-        Respond ONLY with a valid SQL query. No explanations. No markdown. No comments.
-        If unsure, return exactly: I_CANNOT_ANSWER
+You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
+Table: healthcare_dataset (utc, heart_rate, blood_pressure, oxygen_saturation, respiratory_rate, temperature, Label)
+Respond ONLY with SQL. No comments, markdown, or explanations. Return I_CANNOT_ANSWER if unsure.
 
-        Question: {question}
-        """
+Question: {question}
+"""
     return llm.invoke(prompt).content.strip()
 
 @tool
 def run_sql_tool(sql: str) -> str:
-    """Execute the SQL using Supabase RPC and return JSON result."""
+    """Execute SQL on Supabase and return result as JSON string."""
     sql = re.sub(r"```sql\\s*", "", sql, flags=re.IGNORECASE)
     sql = re.sub(r"```", "", sql).strip()
     if sql.endswith(";"):
@@ -110,7 +103,7 @@ def run_sql_tool(sql: str) -> str:
 
 @tool
 def summarize_result_tool(question: str, result: str) -> str:
-    """Summarize SQL result for user question."""
+    """Summarize a SQL result based on the user's question."""
     prompt = f"""
 You are an assistant summarizing SQL results for users in a natural, helpful way.
 
@@ -118,28 +111,26 @@ Question: "{question}"
 SQL Result: {result}
 
 Instructions:
-- If the question is about AQI, calculate it using this formula:
+- If the question is about AQI, calculate it using:
   AQI = (eco2 * 0.25) + (tvoc * 0.25) + (pm1 * 0.25) + (pm2_5 * 0.25)
-  Then respond like: "The current AQI is 52. It is considered 'Moderate'."
-  Use these ranges:
+  Then say: "The current AQI is 52. It is considered 'Moderate'."
+  AQI categories:
     0–50: Good
     51–100: Moderate
     >100: Unhealthy
 
-- For other questions, summarize the result clearly and directly. Use everyday language. Don't say "SQL result".
-
-Your response:
+- Otherwise, give a clear answer in simple terms. No mention of SQL.
 """
     return llm.invoke(prompt).content.strip()
 
 @tool
 def fallback_llm_tool(question: str) -> str:
-    """Use general knowledge to answer question if SQL fails."""
+    """Fallback answer using general knowledge when SQL fails."""
     prompt = f"""
-    Answer the following question directly using general knowledge:
-    "{question}"
-    Be clear and helpful.
-    """
+Answer the following question directly using general knowledge:
+"{question}"
+Be clear and helpful.
+"""
     return llm.invoke(prompt).content.strip()
 
 # --- LangGraph Nodes ---
@@ -222,6 +213,21 @@ class AskRequest(BaseModel):
 async def ask(req: AskRequest):
     print(f"Incoming request: question='{req.question}', source='{req.source}'")
     try:
+        # ✅ Regex-based matching for broader alert phrasing
+        if re.search(r"\b(alert|notify|warn)\b", req.question.lower()):
+            parsed = parse_alert_condition_tool.invoke({"prompt": req.question})
+            print("🧠 Parsed condition:", parsed)
+
+            def monitor():
+                for row in stream_healthcare_data():
+                    result = alert_graph.invoke({"data": row, "condition": parsed})
+                    print("🔔 Alert Agent Output:", json.dumps(result, indent=2))
+
+            thread = threading.Thread(target=monitor, daemon=True)
+            thread.start()
+
+            return {"reply": "✅ Alert agent is now monitoring based on your condition."}
+
         result = app_graph.invoke({"question": req.question, "source": req.source})
         return {
             "reply": result["reply"],
