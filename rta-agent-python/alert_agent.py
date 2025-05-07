@@ -1,0 +1,152 @@
+import os
+import base64
+import json
+import requests
+from typing import TypedDict
+from email.mime.text import MIMEText
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from langchain_core.tools import tool
+from langgraph.graph import StateGraph, END
+from dotenv import load_dotenv
+from langchain_community.chat_models import ChatOpenAI
+
+load_dotenv()
+print("📧 ALERT_RECIPIENT =", os.getenv("ALERT_RECIPIENT"))
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+llm = ChatOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+    model="llama3-70b-8192"
+)
+
+class AlertState(TypedDict):
+    data: dict
+    condition: str
+    alert: bool
+    reason: str
+    result: str
+
+@tool
+def parse_alert_condition_tool(prompt: str) -> str:
+    """Parse a user's alert instruction into a Python expression."""
+    prompt = f"""
+Convert the following instruction into a valid Python boolean expression using keys like temperature, oxygen_saturation, etc.
+Only use operators: >, <, >=, <=, ==, !=
+Return ONLY the expression. Do not explain.
+
+Instruction: {prompt}
+"""
+    return llm.invoke(prompt).content.strip()
+
+@tool
+def check_custom_condition_tool(data: dict, condition: str) -> dict:
+    """Evaluate a parsed Python condition string against incoming data."""
+
+    def is_number(val):
+        try:
+            float(val)
+            return True
+        except:
+            return False
+
+    try:
+        clean_data = {
+            k: float(v) if is_number(v) else v
+            for k, v in data.items()
+        }
+
+        print("🔍 Evaluating condition:", condition)
+        print("📦 Cleaned data:", clean_data)
+
+        alert = eval(condition, {}, clean_data)
+        return {
+            "alert": bool(alert),
+            "reason": f"Condition met: {condition}" if alert else ""
+        }
+
+    except Exception as e:
+        return {"alert": False, "reason": f"Invalid condition: {str(e)}"}
+
+def get_gmail_service():
+    creds = None
+    token_path = 'token.json'
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+        creds = flow.run_local_server(port=0)
+        with open(token_path, 'w') as token:
+            token.write(creds.to_json())
+    return build('gmail', 'v1', credentials=creds)
+
+def send_gmail_oauth(subject: str, body: str, to: str):
+    service = get_gmail_service()
+    message = MIMEText(body)
+    message['to'] = to
+    message['from'] = 'me'
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    send_message = service.users().messages().send(userId='me', body={'raw': raw}).execute()
+    return f"Email sent successfully. Message ID: {send_message['id']}"
+
+@tool
+def send_email_tool(subject: str, body: str) -> str:
+    """Send an alert email using Gmail API via OAuth2."""
+    to = os.getenv("ALERT_RECIPIENT")
+    if not to or not isinstance(to, str):
+        raise ValueError("Missing or invalid ALERT_RECIPIENT in .env")
+    return send_gmail_oauth(subject, body, to)
+
+def check_thresholds_node(state: AlertState):
+    result = check_custom_condition_tool.invoke({
+        "data": state["data"],
+        "condition": state["condition"]
+    })
+    if not result["alert"]:
+        print("✅ No alert triggered.")
+    return {**state, **result}
+
+def send_email_node(state: AlertState):
+    email_result = send_email_tool.invoke({
+        "subject": "🚨 Custom Alert Triggered",
+        "body": f"Reason: {state['reason']}\n\nData:\n{json.dumps(state['data'], indent=2)}"
+    })
+    return {**state, "result": email_result}
+
+def stream_healthcare_data():
+    with requests.get("http://localhost:3001/healthcare-stream", stream=True) as response:
+        for line in response.iter_lines():
+            if line and line.startswith(b"data: "):
+                raw_json = line[6:].decode("utf-8")
+                try:
+                    row = json.loads(raw_json)
+                    yield row
+                except Exception as e:
+                    print("⚠️ Skipping bad row:", e)
+
+graph = StateGraph(AlertState)
+graph.add_node("check_thresholds", check_thresholds_node)
+graph.add_node("send_email", send_email_node)
+graph.set_entry_point("check_thresholds")
+graph.add_conditional_edges(
+    "check_thresholds",
+    lambda s: "send_email" if s["alert"] else "__end__",
+    {
+        "send_email": "send_email",
+        "__end__": END
+    }
+)
+graph.add_edge("send_email", END)
+alert_graph = graph.compile()
+
+if __name__ == "__main__":
+    user_prompt = input("🧠 Enter your alert instruction: ")
+    condition = parse_alert_condition_tool.invoke({"prompt": user_prompt})
+    print(f"🧠 Parsed condition: {condition}\n")
+    print("📡 Listening to /healthcare-stream for alerts...")
+    for row in stream_healthcare_data():
+        result = alert_graph.invoke({"data": row, "condition": condition})
+        print("🔔 Agent processed:", json.dumps(result, indent=2))
