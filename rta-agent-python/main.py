@@ -1,4 +1,4 @@
-# main.py (regenerated with greeting handler and LangGraph agent)
+# main.py (finalized with strict prompts and LangGraph agent)
 
 import os
 import json
@@ -31,55 +31,71 @@ class AgentState(TypedDict):
     result: list
     reply: str
 
-greeting_keywords = ["hi", "hello", "hey", "how are you", "good morning", "good evening", "what's up"]
+greeting_keywords = [
+    "hi", "hello", "hey", "how are you", "good morning", "good evening",
+    "what's up", "whats up", "sup", "yo", "howdy", "heya", "hiya"
+]
 
 def is_greeting(text: str) -> bool:
     text = text.lower().strip()
-    return any(kw in text for kw in greeting_keywords)
+    return any(text.startswith(kw) or kw in text for kw in greeting_keywords)
 
 @tool
 def handle_greeting_tool(question: str) -> str:
-    """Respond like a human to greetings or casual conversation."""
+    """Respond in a friendly, human-like way to casual greetings or light conversation."""
     prompt = f"""
-    Respond naturally and casually as if you're having a light human conversation.
-    Message: "{question}"
-    """
+You are a friendly assistant having a casual chat. Respond warmly and naturally, like a person—not like a definition or dictionary.
+Keep your answer short and expressive (1-2 sentences max). No formal tone. No definitions.
+
+User: "{question}"
+Assistant:"""
     return llm.invoke(prompt).content.strip()
+
 
 @tool
 def generate_sql_tool(question: str, source: str) -> str:
-    """Generate SQL query for the question based on the source table."""
+    """Generate a clean SQL SELECT query. Respond with I_CANNOT_ANSWER if not possible."""
     if source == "IoT":
         prompt = f"""
-        Convert this into a SQL query.
-        Table: iot_dataset (utc, temperature, humidity, tvoc, eco2, raw_h2, raw_ethanol, pressure, pm1, pm2_5, nc0_5, nc1_0, nc2_5, cnt, fire_alarm)
-        Question: {question}
-        Respond only with SQL or say \"I cannot answer this question.\"
-        """
+    You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
+    Table: iot_dataset (utc, temperature, humidity, tvoc, eco2, raw_h2, raw_ethanol, pressure, pm1, pm2_5, nc0_5, nc1_0, nc2_5, cnt, fire_alarm)
+
+    Use PostgreSQL syntax (e.g., CURRENT_TIMESTAMP - INTERVAL '1 hour').
+
+    If the question involves AQI or air quality index, return a query that selects the most recent values of:
+    eco2, tvoc, pm1, pm2_5 — these are used to calculate AQI in the application.
+
+    Respond ONLY with a valid SQL SELECT query. No explanations. No markdown. No comments.
+    If unsure, return exactly: I_CANNOT_ANSWER
+
+    Question: {question}
+    """
+
     elif source == "Stock":
         prompt = f"""
-        Convert this into a SQL query.
+        You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
         Table: stock_dataset (utc, spy, qqq, iwm, aapl, msft, nvda, vix)
+        Respond ONLY with a valid SQL query. No explanations. No markdown. No comments.
+        If unsure, return exactly: I_CANNOT_ANSWER
+
         Question: {question}
-        Respond only with SQL or say \"I cannot answer this question.\"
         """
     else:
         prompt = f"""
-        Convert this into a SQL query.
+        You are a SQL generator. Convert the user's question to a valid SQL SELECT query.
         Table: healthcare_dataset (utc, heart_rate, blood_pressure, oxygen_saturation, respiratory_rate, temperature, Label)
+        Respond ONLY with a valid SQL query. No explanations. No markdown. No comments.
+        If unsure, return exactly: I_CANNOT_ANSWER
+
         Question: {question}
-        Respond only with SQL or say \"I cannot answer this question.\"
         """
     return llm.invoke(prompt).content.strip()
 
 @tool
 def run_sql_tool(sql: str) -> str:
     """Execute the SQL using Supabase RPC and return JSON result."""
-    #sql = sql.strip().strip("`")
     sql = re.sub(r"```sql\\s*", "", sql, flags=re.IGNORECASE)
     sql = re.sub(r"```", "", sql).strip()
-    if sql.lower().startswith("```sql"):
-        sql = sql[6:].strip("`").strip()
     if sql.endswith(";"):
         sql = sql[:-1].strip()
     try:
@@ -96,22 +112,33 @@ def run_sql_tool(sql: str) -> str:
 def summarize_result_tool(question: str, result: str) -> str:
     """Summarize SQL result for user question."""
     prompt = f"""
-    The user asked: \"{question}\"
-    SQL Result: {result}
+You are an assistant summarizing SQL results for users in a natural, helpful way.
 
-    Summarize this in a clear and concise way.
-    """
+Question: "{question}"
+SQL Result: {result}
+
+Instructions:
+- If the question is about AQI, calculate it using this formula:
+  AQI = (eco2 * 0.25) + (tvoc * 0.25) + (pm1 * 0.25) + (pm2_5 * 0.25)
+  Then respond like: "The current AQI is 52. It is considered 'Moderate'."
+  Use these ranges:
+    0–50: Good
+    51–100: Moderate
+    >100: Unhealthy
+
+- For other questions, summarize the result clearly and directly. Use everyday language. Don't say "SQL result".
+
+Your response:
+"""
     return llm.invoke(prompt).content.strip()
 
 @tool
 def fallback_llm_tool(question: str) -> str:
     """Use general knowledge to answer question if SQL fails."""
     prompt = f"""
-    Answer the following question clearly and directly using your general knowledge:
-
-    \"{question}\"
-
-    Do not say you don't have access to real-time data. Provide the best possible answer.
+    Answer the following question directly using general knowledge:
+    "{question}"
+    Be clear and helpful.
     """
     return llm.invoke(prompt).content.strip()
 
@@ -148,7 +175,7 @@ def check_greeting_condition(state: AgentState):
     return "greeting" if is_greeting(state["question"]) else "generate_sql"
 
 def check_sql_condition(state: AgentState):
-    if not state["sql"] or "I cannot answer" in state["sql"]:
+    if not state["sql"] or "I_CANNOT_ANSWER" in state["sql"]:
         return "fallback"
     return "run_sql"
 
@@ -197,11 +224,10 @@ async def ask(req: AskRequest):
     try:
         result = app_graph.invoke({"question": req.question, "source": req.source})
         return {
-    "reply": result["reply"],
-    "sql": result.get("sql"),
-    "result": result.get("result")
-}
-
+            "reply": result["reply"],
+            "sql": result.get("sql"),
+            "result": result.get("result")
+        }
     except Exception as e:
         print("Agent execution error:", str(e))
         raise
