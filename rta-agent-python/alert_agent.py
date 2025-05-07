@@ -31,15 +31,18 @@ class AlertState(TypedDict):
 
 @tool
 def parse_alert_condition_tool(prompt: str) -> str:
-    """Parse a user's alert instruction into a Python expression."""
+    """Convert a user's alert instruction into a valid Python condition string."""
     prompt = f"""
-Convert the following instruction into a valid Python boolean expression using keys like temperature, oxygen_saturation, etc.
-Only use operators: >, <, >=, <=, ==, !=
-Return ONLY the expression. Do not explain.
+Convert this instruction into a valid Python boolean expression.
+- Use keys like fire_alarm, temperature, tvoc, eco2, pm2_5, humidity, etc.
+- fire_alarm is 0 (normal) or 1 (triggered)
+- Use only operators: >, <, ==, !=, >=, <=
+- Output ONLY the expression. Do not explain.
 
 Instruction: {prompt}
 """
     return llm.invoke(prompt).content.strip()
+
 
 @tool
 def check_custom_condition_tool(data: dict, condition: str) -> dict:
@@ -53,12 +56,14 @@ def check_custom_condition_tool(data: dict, condition: str) -> dict:
             return False
 
     try:
+        # Normalize keys: lowercase, replace spaces with underscores
         clean_data = {
-            k: float(v) if is_number(v) else v
+            k.lower().replace(" ", "_"): float(v) if is_number(v) else v
             for k, v in data.items()
         }
 
         print("🔍 Evaluating condition:", condition)
+        print("📦 Cleaned keys:", list(clean_data.keys()))
         print("📦 Cleaned data:", clean_data)
 
         alert = eval(condition, {}, clean_data)
@@ -127,6 +132,17 @@ def stream_healthcare_data():
                 except Exception as e:
                     print("⚠️ Skipping bad row:", e)
 
+def stream_iot_data():
+    with requests.get("http://localhost:3001/iot-stream", stream=True) as response:
+        for line in response.iter_lines():
+            if line and line.startswith(b"data: "):
+                raw_json = line[6:].decode("utf-8")
+                try:
+                    row = json.loads(raw_json)
+                    yield row
+                except Exception as e:
+                    print("⚠️ Skipping bad IoT row:", e)
+
 graph = StateGraph(AlertState)
 graph.add_node("check_thresholds", check_thresholds_node)
 graph.add_node("send_email", send_email_node)
@@ -148,5 +164,18 @@ if __name__ == "__main__":
     print(f"🧠 Parsed condition: {condition}\n")
     print("📡 Listening to /healthcare-stream for alerts...")
     for row in stream_healthcare_data():
+        result = alert_graph.invoke({"data": row, "condition": condition})
+        print("🔔 Agent processed:", json.dumps(result, indent=2))
+
+if __name__ == "__main__":
+    user_prompt = input("🧠 Enter your alert instruction: ")
+    source = input("🌐 Source (Healthcare/IoT): ").strip().lower()
+    condition = parse_alert_condition_tool.invoke({"prompt": user_prompt})
+    print(f"🧠 Parsed condition: {condition}\n")
+
+    stream_func = stream_healthcare_data if source == "healthcare" else stream_iot_data
+    print(f"📡 Listening to /{source}-stream for alerts...")
+
+    for row in stream_func():
         result = alert_graph.invoke({"data": row, "condition": condition})
         print("🔔 Agent processed:", json.dumps(result, indent=2))
