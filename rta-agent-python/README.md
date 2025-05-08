@@ -2,8 +2,8 @@
 
 This project implements a **LangGraph dual-agent architecture** for real-time analytics and intelligence. It features both:
 
--  A **ReAct-style LangGraph agent** for answering analytical questions via SQL or fallback LLM.
--  An **autonomous alert agent** that monitors live sensor data (Healthcare + IoT) and sends Gmail alerts when conditions are met or thresholds are breached.
+- A **ReAct-style LangGraph agent** for answering analytical questions via SQL or fallback LLM.
+- An **autonomous alert agent** that monitors live sensor data (Healthcare + IoT + Stock) and sends Gmail alerts when conditions are met or thresholds are breached
 
 ---
 
@@ -19,10 +19,11 @@ This project implements a **LangGraph dual-agent architecture** for real-time an
   * SQL returns empty results
 
 ###  Autonomous Alert Agent
-* Listens to **live `/healthcare-stream` and `/iot-stream`** data.
+* Listens to **live `/healthcare-stream`, `/iot-stream`, and `/stock-stream`** data.
 * Accepts instructions like:
   * `Notify me when fire_alarm == 1`
-  * `Alert me if tvoc > 150`
+  * `Alert me if vix > 25`
+  * `Warn me when tvoc > 300`
 * Parses to a valid Python condition.
 * Cleans and normalizes incoming data keys (e.g., `Fire Alarm` → `fire_alarm`).
 * Evaluates against condition in real time.
@@ -97,9 +98,14 @@ ALERT_RECIPIENT=you@gmail.com
 uvicorn main:app --reload --port 8001
 ```
 
-### (Optional) Standalone Alert Agent:
+###  (Optional) Standalone Alert Agent:
 ```bash
 python alert_agent.py
+```
+Then enter:
+```text
+🧠 Enter your alert instruction: Alert me when msft > 400
+🌐 Source (Healthcare/IoT/Stock): stock
 ```
 
 ---
@@ -115,19 +121,17 @@ curl -X POST http://localhost:8001/ask \
 ### Example alert prompt:
 ```json
 {
-  "question": "Alert me when fire_alarm == 1",
-  "source": "IoT"
+  "question": "Alert me when vix > 25",
+  "source": "Stock"
 }
 ```
-
-The system will now normalize `Fire Alarm` to `fire_alarm` and evaluate properly.
 
 ---
 
 ## ✅ Features
 
 - ✅ Dual-agent architecture (ReAct + Autonomous)
-- ✅ Live stream monitoring on `/healthcare-stream` and `/iot-stream`
+- ✅ Live stream monitoring on Healthcare, IoT, and Stock
 - ✅ Alert parsing from natural-language prompts
 - ✅ Key normalization (spaces → underscores, lowercase)
 - ✅ Safe `eval()`-based condition execution
@@ -140,7 +144,7 @@ The system will now normalize `Fire Alarm` to `fire_alarm` and evaluate properly
 
 ```bash
 main.py               # FastAPI + LangGraph ReAct QA
-alert_agent.py        # Streaming alert agent for Healthcare + IoT
+alert_agent.py        # Streaming alert agent for Healthcare, IoT, Stock
 credentials.json      # (OAuth2 client file – not tracked)
 token.json            # (OAuth2 token – not tracked)
 .gitignore            # Make sure sensitive files are excluded

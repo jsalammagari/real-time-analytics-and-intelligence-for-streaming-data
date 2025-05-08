@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from typing import TypedDict
 from langchain_core.tools import tool
 from supabase import create_client
-from alert_agent import alert_graph, parse_alert_condition_tool, stream_healthcare_data, stream_iot_data
+from alert_agent import alert_graph, parse_alert_condition_tool, stream_healthcare_data, stream_iot_data, stream_stock_data
 
 load_dotenv()
 
@@ -218,7 +218,8 @@ async def ask(req: AskRequest):
             print("🧠 Parsed condition:", parsed)
 
             def monitor():
-                stream_func = stream_healthcare_data if req.source.lower() == "healthcare" else stream_iot_data
+                source = req.source.lower()
+                stream_func = stream_healthcare_data if source == "healthcare" else stream_iot_data if source == "iot" else stream_stock_data
                 for row in stream_func():
                     result = alert_graph.invoke({"data": row, "condition": parsed})
                     print("🔔 Alert Agent Output:", json.dumps(result, indent=2))
