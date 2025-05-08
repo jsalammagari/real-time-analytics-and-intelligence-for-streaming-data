@@ -31,18 +31,22 @@ class AlertState(TypedDict):
 
 @tool
 def parse_alert_condition_tool(prompt: str) -> str:
-    """Convert a user's alert instruction into a valid Python condition string."""
+    """Convert user alert instruction into a valid Python boolean expression."""
+
     prompt = f"""
-Convert this instruction into a valid Python boolean expression.
-- Use keys like fire_alarm, temperature, tvoc, eco2, pm2_5, humidity, etc.
-- fire_alarm is 0 (normal) or 1 (triggered)
-- Use only operators: >, <, ==, !=, >=, <=
-- Output ONLY the expression. Do not explain.
+You are a condition generator for evaluating Python expressions.
+
+Instructions:
+- ONLY output a valid Python condition using one of these existing keys:
+  fire_alarm, temperature, humidity, tvoc, eco2, pm1, pm2_5,
+  aapl, msft, nvda, vix, spy, qqq, iwm
+- Use operators: >, <, ==, !=, >=, <=
+- DO NOT assume imaginary fields like "apple_stock"
+- DO NOT explain anything. Output ONLY the raw condition.
 
 Instruction: {prompt}
 """
     return llm.invoke(prompt).content.strip()
-
 
 @tool
 def check_custom_condition_tool(data: dict, condition: str) -> dict:
@@ -143,6 +147,17 @@ def stream_iot_data():
                 except Exception as e:
                     print("⚠️ Skipping bad IoT row:", e)
 
+def stream_stock_data():
+    with requests.get("http://localhost:3001/stock-stream", stream=True) as response:
+        for line in response.iter_lines():
+            if line and line.startswith(b"data: "):
+                raw_json = line[6:].decode("utf-8")
+                try:
+                    row = json.loads(raw_json)
+                    yield row
+                except Exception as e:
+                    print("⚠️ Skipping bad stock row:", e)
+
 graph = StateGraph(AlertState)
 graph.add_node("check_thresholds", check_thresholds_node)
 graph.add_node("send_email", send_email_node)
@@ -160,22 +175,21 @@ alert_graph = graph.compile()
 
 if __name__ == "__main__":
     user_prompt = input("🧠 Enter your alert instruction: ")
-    condition = parse_alert_condition_tool.invoke({"prompt": user_prompt})
-    print(f"🧠 Parsed condition: {condition}\n")
-    print("📡 Listening to /healthcare-stream for alerts...")
-    for row in stream_healthcare_data():
-        result = alert_graph.invoke({"data": row, "condition": condition})
-        print("🔔 Agent processed:", json.dumps(result, indent=2))
-
-if __name__ == "__main__":
-    user_prompt = input("🧠 Enter your alert instruction: ")
-    source = input("🌐 Source (Healthcare/IoT): ").strip().lower()
+    source = input("🌐 Source (Healthcare/IoT/Stock): ").strip().lower()
     condition = parse_alert_condition_tool.invoke({"prompt": user_prompt})
     print(f"🧠 Parsed condition: {condition}\n")
 
-    stream_func = stream_healthcare_data if source == "healthcare" else stream_iot_data
+    stream_map = {
+        "healthcare": stream_healthcare_data,
+        "iot": stream_iot_data,
+        "stock": stream_stock_data
+    }
+
+    stream_func = stream_map.get(source)
+    if not stream_func:
+        raise ValueError("Unsupported source. Use Healthcare, IoT, or Stock.")
+
     print(f"📡 Listening to /{source}-stream for alerts...")
-
     for row in stream_func():
         result = alert_graph.invoke({"data": row, "condition": condition})
         print("🔔 Agent processed:", json.dumps(result, indent=2))
