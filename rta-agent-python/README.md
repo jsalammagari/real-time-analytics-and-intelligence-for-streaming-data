@@ -28,6 +28,9 @@ This project implements a **LangGraph dual-agent architecture** for real-time an
 * Cleans and normalizes incoming data keys (e.g., `Fire Alarm` → `fire_alarm`).
 * Evaluates against condition in real time.
 * Sends **Gmail alerts via OAuth2** with timestamped summaries.
+* ✅ Now supports natural-language cancellation:
+  * `Stop the IoT alert`
+  * `Cancel healthcare monitoring`
 
 ---
 
@@ -127,12 +130,20 @@ curl -X POST http://localhost:8001/ask \
 ```
 
 ---
+### ✅ Cancel alert prompt:
+```json
+{
+  "question": "Cancel the stock alert",
+  "source": "Stock"
+}
+```
 
 ## ✅ Features
 
 - ✅ Dual-agent architecture (ReAct + Autonomous)
 - ✅ Live stream monitoring on Healthcare, IoT, and Stock
-- ✅ Alert parsing from natural-language prompts
+- ✅ Natural-language alert parsing + evaluation
+- ✅ Alert cancellation via `/ask` ("stop/cancel alerts")
 - ✅ Key normalization (spaces → underscores, lowercase)
 - ✅ Safe `eval()`-based condition execution
 - ✅ Real-time Gmail alerts with human-readable messages

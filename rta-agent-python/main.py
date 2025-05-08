@@ -42,6 +42,10 @@ def is_greeting(text: str) -> bool:
     text = text.lower().strip()
     return any(text.startswith(kw) or kw in text for kw in greeting_keywords)
 
+# === Thread and Stop Flag Registries ===
+active_threads = {}
+stop_flags = {}
+
 @tool
 def handle_greeting_tool(question: str) -> str:
     """Respond in a friendly, human-like way to casual greetings or light conversation."""
@@ -213,22 +217,41 @@ class AskRequest(BaseModel):
 async def ask(req: AskRequest):
     print(f"Incoming request: question='{req.question}', source='{req.source}'")
     try:
-        if re.search(r"\b(alert|notify|warn)\b", req.question.lower()):
+        lower_q = req.question.lower()
+
+        # 🛑 Cancel existing alerts
+        if re.search(r"\b(stop|cancel|disable)\b.*\b(iot|stock|healthcare)\b", lower_q):
+            match = re.search(r"\b(iot|stock|healthcare)\b", lower_q)
+            if match:
+                source = match.group(1)
+                stop_flags[source] = True
+                print(f"🛑 Stopping {source} alert monitor")
+                return {"reply": f"🛑 {source.title()} alert monitoring stopped."}
+
+        # ✅ Alert monitoring request
+        if re.search(r"\b(alert|notify|warn)\b", lower_q):
             parsed = parse_alert_condition_tool.invoke({"prompt": req.question})
             print("🧠 Parsed condition:", parsed)
+
+            stop_flags[req.source.lower()] = False  # clear any prior flag
 
             def monitor():
                 source = req.source.lower()
                 stream_func = stream_healthcare_data if source == "healthcare" else stream_iot_data if source == "iot" else stream_stock_data
                 for row in stream_func():
+                    if stop_flags.get(source):
+                        print(f"🚫 Monitoring for {source} stopped.")
+                        break
                     result = alert_graph.invoke({"data": row, "condition": parsed})
                     print("🔔 Alert Agent Output:", json.dumps(result, indent=2))
 
             thread = threading.Thread(target=monitor, daemon=True)
             thread.start()
+            active_threads[req.source.lower()] = thread
 
             return {"reply": f"✅ Alert agent is now monitoring {req.source} based on your condition."}
 
+        # 🧠 Fallback to SQL/LLM QA
         result = app_graph.invoke({"question": req.question, "source": req.source})
         return {
             "reply": result["reply"],
